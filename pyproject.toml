@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dpp-sdk"
+dynamic = ["version"]
+description = "Python SDK for Digital Product Passports (DPP) — idiomatic Pydantic v2 port of the Java DPP SDK"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Enno Mueller", email = "ennomueller@online.de" }]
+keywords = ["dpp", "digital-product-passport", "prEN-18222", "sustainability"]
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.6",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "mypy>=1.9",
+    "ruff>=0.4",
+]
+release = [
+    "build>=1.2",
+    "twine>=5.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/CIR4FUN-EU/dpp-sdk-python"
+Repository = "https://github.com/CIR4FUN-EU/dpp-sdk-python"
+Issues = "https://github.com/CIR4FUN-EU/dpp-sdk-python/issues"
+Changelog = "https://github.com/CIR4FUN-EU/dpp-sdk-python/blob/main/CHANGELOG.md"
+Reference = "https://github.com/CIR4FUN-EU/dpp-sdk-platform"
+
+[tool.hatch.version]
+path = "src/dpp_sdk/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dpp_sdk"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/dpp_sdk",
+    "tests",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+
+# The models and wrapper DTOs deliberately use camelCase field/accessor names to
+# match the JSON wire keys of the Java SDK 1:1 — N802/N815 are intentional there.
+[tool.ruff.lint.per-file-ignores]
+"src/dpp_sdk/core/model.py" = ["N802", "N815"]
+"src/dpp_sdk/dpp4fun/model.py" = ["N802", "N815"]
+"src/dpp_sdk/clients/payloads.py" = ["N815"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["dpp_sdk"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["jsonpatch"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
