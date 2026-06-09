@@ -5,7 +5,7 @@ name: Release
 #
 # Flow: build -> publish to TestPyPI -> (manual approval) -> publish to PyPI.
 # Publishing uses PyPI Trusted Publishing (OIDC) — no API tokens are stored.
-# See docs/RELEASING.md for the one-time PyPI/TestPyPI publisher registration.
+# See docs-internal/RELEASING.md for the one-time PyPI/TestPyPI publisher registration.
 
 on:
   push:

@@ -6,6 +6,11 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Changed
+- Documentation update: streamlined `README.md` and project metadata.
+
 ## [0.1.0] — Initial release
 
 First public release of the Python port of the Java DPP SDK.
@@ -16,5 +21,6 @@ First public release of the Python port of the Java DPP SDK.
 - `dpp_sdk.clients` — `httpx`-based HTTP clients for the DPP repository and registry APIs.
 - Packaging: PEP 621 `pyproject.toml`, `src/` layout, `py.typed` marker, sdist + wheel build.
 
-[Unreleased]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CIR4FUN-EU/dpp-sdk-python/releases/tag/v0.1.0

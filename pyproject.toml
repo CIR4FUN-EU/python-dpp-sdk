@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "dpp-sdk"
 dynamic = ["version"]
-description = "Python SDK for Digital Product Passports (DPP) — idiomatic Pydantic v2 port of the Java DPP SDK"
+description = "Python SDK for interacting with Digital Product Passport (DPP) System Infrastructure "
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Enno Mueller", email = "ennomueller@online.de" }]
+authors = [{ name = "Enno Mueller" }]
 keywords = ["dpp", "digital-product-passport", "prEN-18222", "sustainability"]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
@@ -52,7 +52,6 @@ packages = ["src/dpp_sdk"]
 include = [
     "src/dpp_sdk",
     "tests",
-    "docs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",

@@ -1,7 +1,14 @@
 # dpp-sdk (Python)
 
-Python SDK for **Digital Product Passports (DPP)** — an idiomatic [Pydantic v2](https://docs.pydantic.dev)
-port of the Java DPP SDK in the sibling repo `../dpp-sdk-platform`.
+Python SDK for **Digital Product Passports (DPP)**, built on [Pydantic v2](https://docs.pydantic.dev).
+
+It provides typed models, validation, and JSON transport for digital product passports,
+plus HTTP clients for the two DPP backend APIs:
+
+- the **DPP registry** — hosted by the European Commission, and
+- the **DPP repository** — hosted by economic operators or service providers.
+
+Both APIs conform to the draft standardisation documents published by **CEN/CENELEC**.
 
 ## Install
 
@@ -26,25 +33,19 @@ validate_dpp4fun(dpp)
 payload = to_json(dpp)
 ```
 
-The `httpx`-based HTTP clients for the DPP repository and registry live in `dpp_sdk.clients`:
+The `httpx`-based clients for the registry and repository APIs live in `dpp_sdk.clients`:
 
 ```python
 from dpp_sdk.clients import DppRepoClient, DppRegistryClient
 ```
 
-See [`docs/PORTING_PLAN.md`](docs/PORTING_PLAN.md) for design notes and
-[`docs/RELEASING.md`](docs/RELEASING.md) for how releases are cut.
+## Packages
 
-## Scope
-
-| Package | Purpose | Java source ported from |
-|---|---|---|
-| `dpp_sdk.core` | Reusable core DPP model, validation, JSON transport | `dpp-datamodel/dpp-core` |
-| `dpp_sdk.dpp4fun` | Furniture-specific DPP aggregate | `dpp-datamodel/dpp4fun` |
-| `dpp_sdk.clients` | HTTP clients for the DPP repository & registry APIs | `dpp-sdk-clients` |
-
-The Spring Boot mock services in `../dpp-sdk-platform/dpp-sdk-demo` are **not** ported; they are
-reused as a conformance oracle for client tests.
+| Package | Purpose |
+|---|---|
+| `dpp_sdk.core` | Core DPP model, validation, and JSON transport |
+| `dpp_sdk.dpp4fun` | Furniture-specific DPP aggregate |
+| `dpp_sdk.clients` | HTTP clients for the DPP registry & repository APIs |
 
 ## Development
 
@@ -55,15 +56,4 @@ pip install -e ".[dev]"
 pytest        # tests
 mypy          # type check (strict)
 ruff check .  # lint
-```
-
-## Layout
-
-```
-src/dpp_sdk/
-  core/        # core model + validation
-  dpp4fun/     # furniture aggregate, validation, JSON transport
-  clients/     # repo + registry HTTP clients
-tests/         # pytest suite
-docs/          # PORTING_PLAN.md, RELEASING.md
 ```

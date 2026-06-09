@@ -20,3 +20,6 @@ coverage.xml
 .idea/
 .vscode/
 .DS_Store
+
+# Documents
+/docs-internal
