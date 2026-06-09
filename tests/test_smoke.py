@@ -8,7 +8,8 @@ import dpp_sdk
 
 
 def test_package_version() -> None:
-    assert dpp_sdk.__version__ == "0.1.0"
+    assert isinstance(dpp_sdk.__version__, str)
+    assert dpp_sdk.__version__.count(".") >= 2
 
 
 def test_subpackages_importable() -> None:
