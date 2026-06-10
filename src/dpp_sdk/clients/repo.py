@@ -13,7 +13,7 @@ from typing import Any, Generic, TypeVar
 
 import httpx
 
-from . import _http
+from . import _http, endpoints
 from .errors import DppMappingClientError, DppValidationClientError
 from .payloads import CreateDppResponse, DeleteDppResponse, ReadDppIdsRequest, ReadDppIdsResponse
 
@@ -38,6 +38,27 @@ class DppRepoClient(Generic[T]):
         self._codec = codec
         self._validator = validator
         self._client = client if client is not None else _http.build_client()
+
+    @classmethod
+    def for_local_mock(
+        cls,
+        codec: _http.DppCodec[T],
+        validator: _http.DppValidator[T],
+        *,
+        base_url: str | None = None,
+        client: httpx.Client | None = None,
+    ) -> DppRepoClient[T]:
+        """Build a client pointed at the local mock repo (``dpp-sdk-demo``).
+
+        Defaults to :func:`endpoints.local_repo_base_url` (``http://localhost:8080``,
+        env-overridable); pass ``base_url`` to override.
+        """
+        resolved = base_url if base_url is not None else endpoints.local_repo_base_url()
+        return cls(resolved, codec, validator, client=client)
+
+    def health_check(self) -> bool:
+        """Return ``True`` if the repo service answers ``GET /health`` with a 2xx."""
+        return _http.probe_health(self._client, self._base_url)
 
     # --- lifecycle --------------------------------------------------------------
     def create_dpp(self, dpp: T) -> CreateDppResponse:

@@ -5,6 +5,14 @@ Port of `dpp.repo.client.*` / `dpp.registry.client.*` from
 """
 
 from ._http import DppCodec, DppValidator
+from .endpoints import (
+    DEFAULT_REGISTRY_BASE_URL,
+    DEFAULT_REGISTRY_PORT,
+    DEFAULT_REPO_BASE_URL,
+    DEFAULT_REPO_PORT,
+    local_registry_base_url,
+    local_repo_base_url,
+)
 from .errors import (
     DppApiClientError,
     DppClientError,
@@ -30,6 +38,10 @@ from .registry import DppRegistryClient
 from .repo import DppRepoClient
 
 __all__ = [
+    "DEFAULT_REGISTRY_BASE_URL",
+    "DEFAULT_REGISTRY_PORT",
+    "DEFAULT_REPO_BASE_URL",
+    "DEFAULT_REPO_PORT",
     "CreateDppResponse",
     "DeleteDppResponse",
     "DppApiClientError",
@@ -51,4 +63,6 @@ __all__ = [
     "RegisterDppRequest",
     "RegisterDppResponse",
     "UpdateDataElementRequest",
+    "local_registry_base_url",
+    "local_repo_base_url",
 ]

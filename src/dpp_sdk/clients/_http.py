@@ -65,6 +65,22 @@ def encode_segment(value: str) -> str:
     return quote(value, safe="")
 
 
+def probe_health(client: httpx.Client, base_url: str) -> bool:
+    """Probe ``GET {base_url}/health`` and report reachability.
+
+    Mirrors the Java ``DemoServicePreflight.probe``: returns ``True`` only on a 2xx
+    response and ``False`` on any non-2xx status or transport/timeout error. The mock
+    ``/health`` endpoint returns a bare ``HealthPayload`` (not the wrapped DPP API
+    envelope), so this deliberately bypasses :func:`request_api`.
+    """
+    url = resolve(normalize_base_url(base_url), "/health")
+    try:
+        response = client.request("GET", url, headers={"Accept": "application/json"})
+    except (httpx.TimeoutException, httpx.TransportError):
+        return False
+    return 200 <= response.status_code < 300
+
+
 def request_api(
     client: httpx.Client,
     method: str,
