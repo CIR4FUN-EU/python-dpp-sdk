@@ -33,6 +33,14 @@ class ScenarioResult:
 
 
 @dataclass(frozen=True)
+class LiveRun:
+    """Results from one stateful live flow plus non-fatal cleanup diagnostics."""
+
+    results: tuple[ScenarioResult, ...]
+    cleanup_warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class DemoReport:
     """One machine- and human-readable demo execution report."""
 

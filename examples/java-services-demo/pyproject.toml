@@ -30,6 +30,7 @@ include = [
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-ra"
+markers = ["integration: opt-in tests against already-running Java services"]
 
 [tool.ruff]
 line-length = 100
