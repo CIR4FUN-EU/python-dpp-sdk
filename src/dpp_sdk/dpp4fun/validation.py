@@ -112,7 +112,9 @@ def validate_bill_of_materials(bom: BillOfMaterials | None) -> None:
         return
 
     material_keys: set[str] = set()
-    for material in bom.materials:
+    for index, material in enumerate(bom.materials):
+        if material is None:
+            raise DppValidationError(f"BillOfMaterials.materials[{index}] must not be null")
         validate_material(material)
         key = _key(material.name, material.reference)
         if key in material_keys:
@@ -120,7 +122,9 @@ def validate_bill_of_materials(bom: BillOfMaterials | None) -> None:
         material_keys.add(key)
 
     component_keys: set[str] = set()
-    for component in bom.components:
+    for index, component in enumerate(bom.components):
+        if component is None:
+            raise DppValidationError(f"BillOfMaterials.components[{index}] must not be null")
         validate_component(component)
         key = _key(component.name, component.reference)
         if key in component_keys:
@@ -128,7 +132,9 @@ def validate_bill_of_materials(bom: BillOfMaterials | None) -> None:
         component_keys.add(key)
 
     part_keys: set[str] = set()
-    for part in bom.parts:
+    for index, part in enumerate(bom.parts):
+        if part is None:
+            raise DppValidationError(f"BillOfMaterials.parts[{index}] must not be null")
         validate_part(part)
         key = _key(part.name, part.reference)
         if key in part_keys:

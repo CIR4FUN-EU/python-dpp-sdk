@@ -63,6 +63,101 @@ def test_bom_distinct_references_ok() -> None:
     validate_bill_of_materials(bom)  # no raise
 
 
+@pytest.mark.parametrize(
+    ("bom", "indexed_path"),
+    [
+        pytest.param(
+            BillOfMaterials.model_construct(materials=(None,), components=(), parts=()),
+            r"BillOfMaterials\.materials\[0\] must not be null",
+            id="materials-first",
+        ),
+        pytest.param(
+            BillOfMaterials.model_construct(
+                materials=(Material(name="Steel", portion=1.0), None),
+                components=(),
+                parts=(),
+            ),
+            r"BillOfMaterials\.materials\[1\] must not be null",
+            id="materials-later",
+        ),
+        pytest.param(
+            BillOfMaterials.model_construct(materials=(), components=(None,), parts=()),
+            r"BillOfMaterials\.components\[0\] must not be null",
+            id="components-first",
+        ),
+        pytest.param(
+            BillOfMaterials.model_construct(
+                materials=(),
+                components=(Component(name="Leg"), None),
+                parts=(),
+            ),
+            r"BillOfMaterials\.components\[1\] must not be null",
+            id="components-later",
+        ),
+        pytest.param(
+            BillOfMaterials.model_construct(materials=(), components=(), parts=(None,)),
+            r"BillOfMaterials\.parts\[0\] must not be null",
+            id="parts-first",
+        ),
+        pytest.param(
+            BillOfMaterials.model_construct(
+                materials=(),
+                components=(),
+                parts=(Part(name="Seat"), None),
+            ),
+            r"BillOfMaterials\.parts\[1\] must not be null",
+            id="parts-later",
+        ),
+    ],
+)
+def test_bom_null_member_raises_indexed_sdk_validation_error(
+    bom: BillOfMaterials,
+    indexed_path: str,
+) -> None:
+    with pytest.raises(DppValidationError, match=indexed_path):
+        validate_bill_of_materials(bom)
+
+
+@pytest.mark.parametrize(
+    ("bom", "first_error"),
+    [
+        pytest.param(
+            BillOfMaterials.model_construct(
+                materials=(None,),
+                components=(None,),
+                parts=(None,),
+            ),
+            r"BillOfMaterials\.materials\[0\] must not be null",
+            id="materials-before-components-and-parts",
+        ),
+        pytest.param(
+            BillOfMaterials.model_construct(
+                materials=(Material(name="Steel", portion=1.0),),
+                components=(None,),
+                parts=(None,),
+            ),
+            r"BillOfMaterials\.components\[0\] must not be null",
+            id="components-before-parts",
+        ),
+        pytest.param(
+            BillOfMaterials.model_construct(
+                materials=(Material(name="Steel", portion=1.0),),
+                components=(Component(name="Leg"),),
+                parts=(None,),
+            ),
+            r"BillOfMaterials\.parts\[0\] must not be null",
+            id="parts-after-valid-earlier-collections",
+        ),
+    ],
+)
+def test_bom_null_member_preserves_collection_fail_fast_precedence(
+    bom: BillOfMaterials,
+    first_error: str,
+) -> None:
+    with pytest.raises(DppValidationError, match=first_error):
+        validate_bill_of_materials(bom)
+
+
 def test_tags_reject_duplicates() -> None:
     classification = ProductClassification(sector="F", category="Chair", tags=("a", "A"))
     with pytest.raises(DppValidationError, match="duplicate"):

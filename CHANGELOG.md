@@ -7,6 +7,9 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- A fresh-installed-wheel cross-component proof covering validated immutable updates,
+  DPP4Fun codec round-trips, captured repository/registry requests, and client error
+  translation without source-tree imports.
 - Python-only local-endpoint helpers and factories, with explicit `base_url` and
   environment overrides (`DPP_REPO_BASE_URL` / `DPP_REGISTRY_BASE_URL`). They do
   not provide or operate any service.
@@ -18,6 +21,8 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   externally supplied endpoint.
 
 ### Fixed
+- Bill-of-materials validation now rejects null material, component, and part members
+  with fail-fast indexed `DppValidationError` paths instead of leaking `AttributeError`.
 - History reads now normalize timezone-aware datetimes to the Java-compatible canonical UTC
   `Z` query wire, including Java-compatible fractional-second precision.
 - Repository identifiers and element paths now use exact dynamic-segment percent encoding,
@@ -27,6 +32,8 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   values or raw implementation exceptions can escape.
 
 ### Changed
+- Active model guidance and contract tests consistently use `with_updates()` as the
+  revalidating immutable-edit seam; intentional Pydantic bypass probes remain internal.
 - `README.md`: full lifecycle Quickstart (build → validate → store → register → read → update →
   delete) now uses application-provided endpoints and no-network examples.
 

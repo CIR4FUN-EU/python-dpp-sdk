@@ -156,3 +156,126 @@ def test_dpp4fun_with_updates_rejects_invalid_known_field_values() -> None:
 
     with pytest.raises(ValidationError, match="must not be blank if provided"):
         classification.with_updates(group=" ")
+
+
+@pytest.mark.parametrize(
+    (
+        "contract_id",
+        "model",
+        "valid_changes",
+        "changed_field",
+        "expected_value",
+        "invalid_changes",
+        "invalid_match",
+    ),
+    [
+        pytest.param(
+            "MODEL-DPP4FUN-BILL-OF-MATERIALS-IMMUTABLE-UPDATE",
+            BillOfMaterials(),
+            {"materials": (Material(name="Steel", portion=1.0),)},
+            "materials",
+            (Material(name="Steel", portion=1.0),),
+            {"materials": (None,)},
+            "materials.0",
+            id="MODEL-DPP4FUN-BILL-OF-MATERIALS-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-DPP4FUN-CHARACTERISTICS-IMMUTABLE-UPDATE",
+            Characteristics(productName="Chair"),
+            {"productName": "Desk"},
+            "productName",
+            "Desk",
+            {"productName": " "},
+            "must not be blank",
+            id="MODEL-DPP4FUN-CHARACTERISTICS-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-DPP4FUN-COMPONENT-IMMUTABLE-UPDATE",
+            Component(name="Leg"),
+            {"reference": "C-1"},
+            "reference",
+            "C-1",
+            {"name": " "},
+            "must not be blank",
+            id="MODEL-DPP4FUN-COMPONENT-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-DPP4FUN-DIMENSIONS-IMMUTABLE-UPDATE",
+            Dimensions(width=1.0, height=2.0, depth=3.0),
+            {"unit": "cm"},
+            "unit",
+            "cm",
+            {"width": -1.0},
+            "greater than or equal to 0",
+            id="MODEL-DPP4FUN-DIMENSIONS-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-DPP4FUN-DPP4-FUN-IMMUTABLE-UPDATE",
+            None,
+            {
+                "classification": ProductClassification(
+                    sector="Furniture",
+                    category="Desk",
+                )
+            },
+            "classification",
+            ProductClassification(sector="Furniture", category="Desk"),
+            {"coreDpp": None},
+            "coreDpp",
+            id="MODEL-DPP4FUN-DPP4-FUN-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-DPP4FUN-MATERIAL-IMMUTABLE-UPDATE",
+            Material(name="Steel"),
+            {"portion": 0.5},
+            "portion",
+            0.5,
+            {"portion": -1.0},
+            "greater than or equal to 0",
+            id="MODEL-DPP4FUN-MATERIAL-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-DPP4FUN-PART-IMMUTABLE-UPDATE",
+            Part(name="Seat"),
+            {"mandatory": True},
+            "mandatory",
+            True,
+            {"name": " "},
+            "must not be blank",
+            id="MODEL-DPP4FUN-PART-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-DPP4FUN-PRODUCT-CLASSIFICATION-IMMUTABLE-UPDATE",
+            ProductClassification(sector="Furniture", category="Chair"),
+            {"tags": ("office",)},
+            "tags",
+            ("office",),
+            {"group": " "},
+            "must not be blank if provided",
+            id="MODEL-DPP4FUN-PRODUCT-CLASSIFICATION-IMMUTABLE-UPDATE",
+        ),
+    ],
+)
+def test_dpp4fun_contract_with_updates_revalidates_known_fields_and_preserves_original(
+    contract_id: str,
+    model: object,
+    valid_changes: dict[str, object],
+    changed_field: str,
+    expected_value: object,
+    invalid_changes: dict[str, object],
+    invalid_match: str,
+    valid_dpp4fun: Dpp4Fun,
+) -> None:
+    value = valid_dpp4fun if model is None else model
+    before = value.model_dump(mode="python")  # type: ignore[union-attr]
+    original_field = getattr(value, changed_field)
+
+    updated = value.with_updates(**valid_changes)  # type: ignore[union-attr]
+
+    assert type(updated) is type(value)
+    assert getattr(updated, changed_field) == expected_value
+    assert getattr(value, changed_field) == original_field
+    assert value.model_dump(mode="python") == before  # type: ignore[union-attr]
+    with pytest.raises(ValidationError, match=invalid_match):
+        value.with_updates(**invalid_changes)  # type: ignore[union-attr]
+    assert value.model_dump(mode="python") == before  # type: ignore[union-attr]

@@ -35,8 +35,8 @@ def test_models_are_frozen(valid_core: DppCore) -> None:
         valid_core.nameplate.gtinCode = "changed"  # type: ignore[misc]
 
 
-def test_model_copy_for_edits(valid_core: DppCore) -> None:
-    updated = valid_core.nameplate.model_copy(update={"batchNumber": "B-9"})
+def test_with_updates_for_validated_edits(valid_core: DppCore) -> None:
+    updated = valid_core.nameplate.with_updates(batchNumber="B-9")
     assert updated.batchNumber == "B-9"
     assert valid_core.nameplate.batchNumber is None  # original untouched
 
@@ -256,3 +256,134 @@ def test_with_updates_rejects_invalid_known_field_values() -> None:
 
     with pytest.raises(ValidationError, match="must not be blank if provided"):
         nameplate.with_updates(batchNumber=" ")
+
+
+@pytest.mark.parametrize(
+    (
+        "contract_id",
+        "model",
+        "valid_changes",
+        "changed_field",
+        "expected_value",
+        "invalid_changes",
+        "invalid_match",
+    ),
+    [
+        pytest.param(
+            "MODEL-CORE-ADDRESS-IMMUTABLE-UPDATE",
+            Address(country="DE", town="Berlin"),
+            {"town": "Bonn"},
+            "town",
+            "Bonn",
+            {"country": " "},
+            "must not be blank",
+            id="MODEL-CORE-ADDRESS-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-CONTACT-IMMUTABLE-UPDATE",
+            Contact(organization="ACME"),
+            {"organization": "Other"},
+            "organization",
+            "Other",
+            {"organization": " "},
+            "must not be blank",
+            id="MODEL-CORE-CONTACT-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-DOCUMENTATION-IMMUTABLE-UPDATE",
+            Documentation(),
+            {"downloadable": True},
+            "downloadable",
+            True,
+            {"availableForYears": -1},
+            "greater than or equal to 0",
+            id="MODEL-CORE-DOCUMENTATION-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-DPP-CORE-IMMUTABLE-UPDATE",
+            None,
+            {"documentation": None},
+            "documentation",
+            None,
+            {"nameplate": None},
+            "nameplate",
+            id="MODEL-CORE-DPP-CORE-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-EMAIL-IMMUTABLE-UPDATE",
+            Email(emailAddress="info@example.test"),
+            {"typeOfEmail": "work"},
+            "typeOfEmail",
+            "work",
+            {"emailAddress": " "},
+            "must not be blank",
+            id="MODEL-CORE-EMAIL-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-NAMEPLATE-IMMUTABLE-UPDATE",
+            Nameplate(gtinCode="GTIN"),
+            {"batchNumber": "B-1"},
+            "batchNumber",
+            "B-1",
+            {"batchNumber": " "},
+            "must not be blank if provided",
+            id="MODEL-CORE-NAMEPLATE-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-ORGANIZATION-IMMUTABLE-UPDATE",
+            Organization(name="ACME"),
+            {"uri": "https://example.test"},
+            "uri",
+            "https://example.test",
+            {"name": " "},
+            "must not be blank",
+            id="MODEL-CORE-ORGANIZATION-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-PASSPORT-METADATA-IMMUTABLE-UPDATE",
+            PassportMetadata(
+                uniqueProductIdentifier=UUID(int=1),
+                passportUpdateDates=(date(2024, 1, 1),),
+            ),
+            {"qrCodeOrDigitalTag": "QR"},
+            "qrCodeOrDigitalTag",
+            "QR",
+            {"passportUpdateDates": ()},
+            "at least 1",
+            id="MODEL-CORE-PASSPORT-METADATA-IMMUTABLE-UPDATE",
+        ),
+        pytest.param(
+            "MODEL-CORE-TELEPHONE-IMMUTABLE-UPDATE",
+            Telephone(telephoneNumber="+49-30"),
+            {"typeOfTelephone": "work"},
+            "typeOfTelephone",
+            "work",
+            {"telephoneNumber": " "},
+            "must not be blank",
+            id="MODEL-CORE-TELEPHONE-IMMUTABLE-UPDATE",
+        ),
+    ],
+)
+def test_core_contract_with_updates_revalidates_known_fields_and_preserves_original(
+    contract_id: str,
+    model: object,
+    valid_changes: dict[str, object],
+    changed_field: str,
+    expected_value: object,
+    invalid_changes: dict[str, object],
+    invalid_match: str,
+    valid_core: DppCore,
+) -> None:
+    value = valid_core if model is None else model
+    before = value.model_dump(mode="python")  # type: ignore[union-attr]
+    original_field = getattr(value, changed_field)
+
+    updated = value.with_updates(**valid_changes)  # type: ignore[union-attr]
+
+    assert type(updated) is type(value)
+    assert getattr(updated, changed_field) == expected_value
+    assert getattr(value, changed_field) == original_field
+    assert value.model_dump(mode="python") == before  # type: ignore[union-attr]
+    with pytest.raises(ValidationError, match=invalid_match):
+        value.with_updates(**invalid_changes)  # type: ignore[union-attr]
+    assert value.model_dump(mode="python") == before  # type: ignore[union-attr]
