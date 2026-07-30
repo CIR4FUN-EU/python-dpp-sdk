@@ -66,7 +66,7 @@ def test_immutable_validated_model_round_trips_through_repository_client(
         assert request.method == "PATCH"
         assert request.url.raw_path == b"/v1/dpps/DPP-1/elements/%24.characteristics.weight"
         assert json.loads(request.content) is None
-        return httpx.Response(200, json={"statusCode": "Success", "payload": None})
+        return httpx.Response(200, json={"statusCode": "Success", "payload": {"accepted": True}})
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     repo = DppRepoClient(
@@ -79,6 +79,6 @@ def test_immutable_validated_model_round_trips_through_repository_client(
     assert updated.classification.tags == ("recyclable", "durable")
     assert repo.create_dpp(updated).dppId == updated.dpp_id
     assert repo.read_dpp_by_id(updated.dpp_id) == updated
-    assert repo.update_data_element("DPP-1", "$.characteristics.weight", None) is None
+    assert repo.update_data_element("DPP-1", "$.characteristics.weight", None) == {"accepted": True}
     assert validator_calls == 1
     assert not client.is_closed

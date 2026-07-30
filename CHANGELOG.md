@@ -17,6 +17,15 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 - `integration` pytest marker and opt-in live conformance tests for an
   externally supplied endpoint.
 
+### Fixed
+- History reads now normalize timezone-aware datetimes to the Java-compatible canonical UTC
+  `Z` query wire, including Java-compatible fractional-second precision.
+- Repository identifiers and element paths now use exact dynamic-segment percent encoding,
+  including encoded `*`, `~`, `%`, `?`, and `#`.
+- Repository and registry clients now reject null response payloads, null codec results, and
+  invalid registry requests through causal `DppMappingClientError` failures before invalid
+  values or raw implementation exceptions can escape.
+
 ### Changed
 - `README.md`: full lifecycle Quickstart (build → validate → store → register → read → update →
   delete) now uses application-provided endpoints and no-network examples.

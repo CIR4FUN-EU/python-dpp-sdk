@@ -8,7 +8,7 @@ pipeline match the Java client exactly.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, Generic, Self, TypeVar
 
@@ -152,12 +152,12 @@ class DppRepoClient(Generic[T]):
     # --- fine-granular elements -------------------------------------------------
     def read_data_element(self, dpp_id: str, element_path: str) -> Any:
         response = self._send("GET", self._data_element_path(dpp_id, element_path), None)
-        return response.payload
+        return _http.require_payload(response)
 
     def update_data_element(self, dpp_id: str, element_path: str, payload: Any) -> Any:
         body = json.dumps(payload)
         response = self._send("PATCH", self._data_element_path(dpp_id, element_path), body)
-        return response.payload
+        return _http.require_payload(response)
 
     # --- internals --------------------------------------------------------------
     def _send(self, method: str, path: str, body: str | None) -> Any:
@@ -166,19 +166,22 @@ class DppRepoClient(Generic[T]):
     def _serialize(self, dpp: T) -> str:
         try:
             json_str = self._codec.to_json(dpp)
+            if json_str is None:
+                raise ValueError("codec returned null JSON")
         except DppClientError:
             raise
         except Exception as exc:  # noqa: BLE001 - re-raised as a client error
             raise DppMappingClientError("DPP serialization failed before request") from exc
-        if json_str is None:
-            raise DppMappingClientError("codec returned null JSON")
         return json_str
 
     def _decode_dpp_payload(self, response: Any) -> T:
         payload = _http.require_payload(response)
         payload_json = json.dumps(payload)
         try:
-            return self._codec.from_json(payload_json)
+            result = self._codec.from_json(payload_json)
+            if result is None:
+                raise ValueError("codec returned null DPP")
+            return result
         except DppClientError:
             raise
         except Exception as exc:  # noqa: BLE001 - re-raised as a client error
@@ -226,4 +229,11 @@ class DppRepoClient(Generic[T]):
     def _instant(value: datetime) -> str:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("date must be timezone-aware")
-        return value.isoformat()
+        instant = value.astimezone(UTC)
+        if instant.microsecond == 0:
+            timespec = "seconds"
+        elif instant.microsecond % 1000 == 0:
+            timespec = "milliseconds"
+        else:
+            timespec = "microseconds"
+        return instant.isoformat(timespec=timespec).replace("+00:00", "Z")

@@ -58,7 +58,17 @@ class DppRegistryClient:
         self.close()
 
     def post_new_dpp_to_registry(self, request: RegisterDppRequest) -> RegisterDppResponse:
-        body = request.model_dump_json()
+        if request is None:
+            cause = ValueError("request must not be null")
+            raise DppMappingClientError(
+                "DPP registry request could not be mapped before request"
+            ) from cause
+        try:
+            body = request.model_dump_json()
+        except Exception as exc:  # noqa: BLE001 - re-raised as a client error
+            raise DppMappingClientError(
+                "DPP registry request could not be mapped before request"
+            ) from exc
         response = _http.request_api(
             self._client, "POST", _http.resolve(self._base_url, _REGISTER_PATH), body
         )

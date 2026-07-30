@@ -62,7 +62,7 @@ def resolve(base_url: str, path_and_query: str) -> str:
 
 
 def encode_segment(value: str) -> str:
-    return quote(value, safe="")
+    return quote(value, safe="").replace("~", "%7E")
 
 
 def probe_health(client: httpx.Client, base_url: str) -> bool:
@@ -123,7 +123,10 @@ def _parse_api_response(raw_body: str) -> DppApiResponse:
 def _require_api_success(response: DppApiResponse, raw_body: str) -> None:
     status_code = response.statusCode
     if status_code is None:
-        raise DppMappingClientError("DPP API response could not be mapped: missing statusCode")
+        cause = ValueError("Missing required response field: statusCode")
+        raise DppMappingClientError(
+            "DPP API response could not be mapped: missing statusCode"
+        ) from cause
     if not status_code.is_success:
         raise DppApiClientError(
             f"DPP API returned error status {status_code.value}",
@@ -156,4 +159,7 @@ def require_field(payload: Any, field_name: str, field_path: str) -> Any:
 
 
 def _missing_field(field_path: str) -> DppMappingClientError:
-    return DppMappingClientError(f"Missing required response field: {field_path}")
+    message = f"Missing required response field: {field_path}"
+    error = DppMappingClientError(message)
+    error.__cause__ = ValueError(message)
+    return error

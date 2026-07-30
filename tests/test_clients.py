@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -134,12 +134,33 @@ def test_read_data_element_returns_the_raw_selected_json_value(contract_id: str)
     assert _make_repo(handler).read_data_element("DPP 1", "$.characteristics.weight") == 42
 
 
+@pytest.mark.parametrize(
+    "operation",
+    [
+        pytest.param("read", id="element-read"),
+        pytest.param("update", id="element-update"),
+    ],
+)
+def test_element_null_payload_is_a_causal_mapping_error(operation: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"statusCode": "Success", "payload": None})
+
+    repo = _make_repo(handler)
+    with pytest.raises(DppMappingClientError, match="payload") as exc:
+        if operation == "read":
+            repo.read_data_element("DPP-1", "$.weight")
+        else:
+            repo.update_data_element("DPP-1", "$.weight", 42)
+    assert isinstance(exc.value.__cause__, ValueError)
+    assert "payload" in str(exc.value.__cause__)
+
+
 def test_compatibility_element_dto_cannot_change_canonical_direct_body() -> None:
     seen: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen["body"] = json.loads(request.content)
-        return httpx.Response(200, json={"statusCode": "Success", "payload": None})
+        return httpx.Response(200, json={"statusCode": "Success", "payload": {"accepted": True}})
 
     compatibility_dto = UpdateDataElementRequest(payload={"weight": 42})
     _make_repo(handler).update_data_element("DPP-1", "$.weight", compatibility_dto.payload)
@@ -173,8 +194,7 @@ def test_dpp_id_history_uses_versioned_path_and_ordered_query(
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert (
-            request.url.raw_path
-            == b"/v1/dppsByIdAndDate/DPP%201?date=2026-01-15T12%3A00%3A00%2B00%3A00"
+            request.url.raw_path == b"/v1/dppsByIdAndDate/DPP%201?date=2026-01-15T12%3A00%3A00Z"
             b"&representation=full"
         )
         return httpx.Response(200, json={"statusCode": "Success", "payload": flat})
@@ -196,7 +216,7 @@ def test_product_id_history_is_retained_unversioned_compatibility(
     def handler(request: httpx.Request) -> httpx.Response:
         assert (
             request.url.raw_path
-            == b"/dppsByProductIdAndDate/GTIN%201?date=2026-01-15T12%3A00%3A00%2B00%3A00"
+            == b"/dppsByProductIdAndDate/GTIN%201?date=2026-01-15T12%3A00%3A00Z"
         )
         return httpx.Response(200, json={"statusCode": "Success", "payload": flat})
 
@@ -206,6 +226,168 @@ def test_product_id_history_is_retained_unversioned_compatibility(
         )
         == valid_dpp4fun
     )
+
+
+@pytest.mark.parametrize(
+    ("date", "expected_query"),
+    [
+        pytest.param(
+            datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC),
+            b"2024-01-02T03%3A04%3A05Z",
+            id="utc-aware",
+        ),
+        pytest.param(
+            datetime(2024, 1, 2, 4, 4, 5, tzinfo=timezone(timedelta(hours=1))),
+            b"2024-01-02T03%3A04%3A05Z",
+            id="positive-offset",
+        ),
+        pytest.param(
+            datetime(2024, 1, 1, 22, 4, 5, tzinfo=timezone(timedelta(hours=-5))),
+            b"2024-01-02T03%3A04%3A05Z",
+            id="negative-offset-crosses-forward-date-boundary",
+        ),
+        pytest.param(
+            datetime(2024, 1, 2, 0, 30, tzinfo=timezone(timedelta(hours=1))),
+            b"2024-01-01T23%3A30%3A00Z",
+            id="positive-offset-crosses-backward-date-boundary",
+        ),
+        pytest.param(
+            datetime(2024, 1, 2, 3, 4, 5, 123000, tzinfo=UTC),
+            b"2024-01-02T03%3A04%3A05.123Z",
+            id="millisecond-fraction",
+        ),
+        pytest.param(
+            datetime(2024, 1, 2, 3, 4, 5, 123456, tzinfo=UTC),
+            b"2024-01-02T03%3A04%3A05.123456Z",
+            id="microsecond-fraction",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    ("route_family", "expected_prefix", "expected_suffix"),
+    [
+        pytest.param(
+            "dpp-id",
+            b"/v1/dppsByIdAndDate/DPP%201?date=",
+            b"&representation=full",
+            id="dpp-id-history",
+        ),
+        pytest.param(
+            "product-id",
+            b"/dppsByProductIdAndDate/DPP%201?date=",
+            b"",
+            id="product-id-history",
+        ),
+    ],
+)
+def test_history_timestamp_wire_is_canonical_utc_z(
+    route_family: str,
+    expected_prefix: bytes,
+    expected_suffix: bytes,
+    date: datetime,
+    expected_query: bytes,
+    valid_dpp4fun: Dpp4Fun,
+) -> None:
+    flat = json.loads(to_json(valid_dpp4fun))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.raw_path == expected_prefix + expected_query + expected_suffix
+        return httpx.Response(200, json={"statusCode": "Success", "payload": flat})
+
+    repo = _make_repo(handler)
+    if route_family == "dpp-id":
+        result = repo.read_dpp_version_by_id_and_date("DPP 1", date)
+    else:
+        result = repo.read_dpp_version_by_product_id_and_date("DPP 1", date)
+    assert result == valid_dpp4fun
+
+
+@pytest.mark.parametrize(
+    ("value", "encoded"),
+    [
+        pytest.param("*", b"%2A", id="star"),
+        pytest.param("~", b"%7E", id="tilde"),
+        pytest.param("a b", b"a%20b", id="space"),
+        pytest.param("/", b"%2F", id="slash"),
+        pytest.param("+", b"%2B", id="plus"),
+        pytest.param("%", b"%25", id="percent"),
+        pytest.param("?", b"%3F", id="question-mark"),
+        pytest.param("#", b"%23", id="hash"),
+        pytest.param("a~b%?#", b"a%7Eb%25%3F%23", id="refreshed-parent-combined-vector"),
+        pytest.param("Grüße", b"Gr%C3%BC%C3%9Fe", id="unicode-non-ascii"),
+        pytest.param("a%2Fb", b"a%252Fb", id="already-percent-looking"),
+    ],
+)
+@pytest.mark.parametrize(
+    "route_family",
+    [
+        pytest.param("delete-dpp-by-id", id="delete-dpp-by-id"),
+        pytest.param("read-compressed-dpp-by-id", id="read-compressed-dpp-by-id"),
+        pytest.param("read-data-element", id="read-data-element"),
+        pytest.param("read-dpp-by-id", id="read-dpp-by-id"),
+        pytest.param("read-dpp-by-product-id", id="read-dpp-by-product-id"),
+        pytest.param("read-dpp-version-by-id-and-date", id="read-dpp-version-by-id-and-date"),
+        pytest.param(
+            "read-dpp-version-by-product-id-and-date",
+            id="read-dpp-version-by-product-id-and-date",
+        ),
+        pytest.param("update-data-element", id="update-data-element"),
+        pytest.param("update-dpp-by-id", id="update-dpp-by-id"),
+    ],
+)
+def test_dynamic_path_segment_wire_is_exact_for_every_route_family(
+    route_family: str,
+    value: str,
+    encoded: bytes,
+    valid_dpp4fun: Dpp4Fun,
+) -> None:
+    flat = json.loads(to_json(valid_dpp4fun))
+    if route_family == "read-dpp-by-product-id":
+        expected_path = b"/v1/dppsByProductId/" + encoded + b"?representation=full"
+    elif route_family == "read-dpp-version-by-id-and-date":
+        expected_path = (
+            b"/v1/dppsByIdAndDate/"
+            + encoded
+            + b"?date=2024-01-02T03%3A04%3A05Z&representation=full"
+        )
+    elif route_family == "read-dpp-version-by-product-id-and-date":
+        expected_path = b"/dppsByProductIdAndDate/" + encoded + b"?date=2024-01-02T03%3A04%3A05Z"
+    elif route_family in {"read-data-element", "update-data-element"}:
+        expected_path = b"/v1/dpps/" + encoded + b"/elements/" + encoded
+    elif route_family == "read-dpp-by-id":
+        expected_path = b"/v1/dpps/" + encoded + b"?representation=full"
+    elif route_family == "read-compressed-dpp-by-id":
+        expected_path = b"/v1/dpps/" + encoded + b"?representation=compressed"
+    else:
+        expected_path = b"/v1/dpps/" + encoded
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.raw_path == expected_path
+        status = "SuccessNoContent" if route_family == "delete-dpp-by-id" else "Success"
+        payload: Any = 42 if route_family in {"read-data-element", "update-data-element"} else flat
+        return httpx.Response(200, json={"statusCode": status, "payload": payload})
+
+    repo = _make_repo(handler)
+    if route_family == "delete-dpp-by-id":
+        repo.delete_dpp_by_id(value)
+    elif route_family == "read-compressed-dpp-by-id":
+        repo.read_compressed_dpp_by_id(value)
+    elif route_family == "read-data-element":
+        repo.read_data_element(value, value)
+    elif route_family == "read-dpp-by-id":
+        repo.read_dpp_by_id(value)
+    elif route_family == "read-dpp-by-product-id":
+        repo.read_dpp_by_product_id(value)
+    elif route_family == "read-dpp-version-by-id-and-date":
+        repo.read_dpp_version_by_id_and_date(value, datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC))
+    elif route_family == "read-dpp-version-by-product-id-and-date":
+        repo.read_dpp_version_by_product_id_and_date(
+            value, datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
+        )
+    elif route_family == "update-data-element":
+        repo.update_data_element(value, value, {"updated": True})
+    else:
+        repo.update_dpp_by_id(value, {"updated": True})
 
 
 @pytest.mark.parametrize("contract_id", ["CLIENT-REPO-UPDATE-DPP-BY-ID-001"])
@@ -245,7 +427,7 @@ def test_element_patch_preserves_every_json_value_and_bypasses_validator(payload
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.raw_path == b"/v1/dpps/DPP%201/elements/%24%5B%27a%2Fb%27%5D"
         assert json.loads(request.content) == payload
-        return httpx.Response(200, json={"statusCode": "Success", "payload": payload})
+        return httpx.Response(200, json={"statusCode": "Success", "payload": {"accepted": True}})
 
     def validator(dpp: Dpp4Fun) -> None:
         nonlocal calls
@@ -257,7 +439,7 @@ def test_element_patch_preserves_every_json_value_and_bypasses_validator(payload
         validator=validator,
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
-    assert repo.update_data_element("DPP 1", "$['a/b']", payload) == payload
+    assert repo.update_data_element("DPP 1", "$['a/b']", payload) == {"accepted": True}
     assert calls == 0
 
 
@@ -369,6 +551,40 @@ def test_registry_register_uses_canonical_wire_contract(
     )
     assert response.registrationId == "REG-1"
     assert response.model_dump() == {"registrationId": "REG-1"}
+
+
+@pytest.mark.parametrize(
+    "registry_request",
+    [
+        pytest.param(None, id="null-request"),
+        pytest.param(
+            RegisterDppRequest.model_construct(uniqueProductIdentifier=object()),
+            id="structurally-invalid-request",
+        ),
+    ],
+)
+def test_registry_invalid_request_is_a_causal_mapping_error_before_network(
+    registry_request: RegisterDppRequest | None,
+) -> None:
+    calls = 0
+
+    def handler(http_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200, json={"statusCode": "Success", "payload": {"registrationId": "R"}}
+        )
+
+    registry = DppRegistryClient(
+        "http://reg.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    with pytest.raises(DppMappingClientError, match="request") as exc:
+        registry.post_new_dpp_to_registry(registry_request)  # type: ignore[arg-type]
+    assert exc.value.__cause__ is not None
+    assert str(exc.value.__cause__)
+    assert not isinstance(exc.value.__cause__, AttributeError)
+    assert calls == 0
 
 
 @pytest.mark.parametrize(
@@ -664,6 +880,22 @@ class _DecodingFailureCodec:
         raise ValueError("decode")
 
 
+class _NullDecodingCodec:
+    def to_json(self, dpp: Any) -> str:
+        return "{}"
+
+    def from_json(self, raw: str) -> Any:
+        return None
+
+
+class _NullEncodingCodec:
+    def to_json(self, dpp: Any) -> Any:
+        return None
+
+    def from_json(self, raw: str) -> Any:
+        return raw
+
+
 def _make_generic_repo(handler: Any, codec: Any, validator: Any) -> DppRepoClient[Any]:
     return DppRepoClient(
         "http://repo.test",
@@ -707,6 +939,21 @@ def test_codec_encoding_failure_precedes_network() -> None:
     assert not sent
 
 
+def test_codec_null_serialization_is_a_causal_mapping_error_before_network() -> None:
+    sent = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal sent
+        sent = True
+        return httpx.Response(200)
+
+    with pytest.raises(DppMappingClientError, match="serialization") as exc:
+        _make_generic_repo(handler, _NullEncodingCodec(), lambda value: None).create_dpp(object())
+    assert isinstance(exc.value.__cause__, ValueError)
+    assert str(exc.value.__cause__) == "codec returned null JSON"
+    assert not sent
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
@@ -736,6 +983,100 @@ def test_2xx_envelope_mapping_and_payload_failures_remain_mapping_errors() -> No
         missing_payload.read_dpp_by_id("D")
 
 
+def test_missing_api_status_is_a_causal_mapping_error() -> None:
+    repo = _make_generic_repo(
+        lambda request: httpx.Response(200, json={"payload": {}}),
+        _NullDecodingCodec(),
+        lambda value: None,
+    )
+    with pytest.raises(DppMappingClientError, match="statusCode") as exc:
+        repo.read_dpp_by_id("D")
+    assert isinstance(exc.value.__cause__, ValueError)
+    assert str(exc.value.__cause__) == "Missing required response field: statusCode"
+
+
+@pytest.mark.parametrize(
+    ("missing_field", "operation"),
+    [
+        pytest.param(
+            "payload",
+            "read-dpp",
+            id="required-payload-helper",
+        ),
+        pytest.param(
+            "payload.dppId",
+            "create-dpp-id",
+            id="required-text-field-helper",
+        ),
+        pytest.param(
+            "payload.dppIdentifiers",
+            "read-dpp-identifiers",
+            id="required-field-helper",
+        ),
+        pytest.param(
+            "payload.registrationId",
+            "registry-registration-id",
+            id="registry-required-text-field-helper",
+        ),
+    ],
+)
+def test_synthesized_missing_structure_errors_have_meaningful_causes(
+    missing_field: str,
+    operation: str,
+) -> None:
+    if operation == "read-dpp":
+        repo = _make_generic_repo(
+            lambda request: httpx.Response(200, json={"statusCode": "Success"}),
+            _NullDecodingCodec(),
+            lambda value: None,
+        )
+
+        def call() -> None:
+            repo.read_dpp_by_id("D")
+
+    elif operation == "create-dpp-id":
+        repo = _make_generic_repo(
+            lambda request: httpx.Response(
+                200, json={"statusCode": "SuccessCreated", "payload": {}}
+            ),
+            _NullDecodingCodec(),
+            lambda value: None,
+        )
+
+        def call() -> None:
+            repo.create_dpp(object())
+
+    elif operation == "read-dpp-identifiers":
+        repo = _make_generic_repo(
+            lambda request: httpx.Response(200, json={"statusCode": "Success", "payload": {}}),
+            _NullDecodingCodec(),
+            lambda value: None,
+        )
+
+        def call() -> None:
+            repo.read_dpp_ids_by_product_ids(["P"])
+
+    else:
+        registry = DppRegistryClient(
+            "http://reg.test",
+            client=httpx.Client(
+                transport=httpx.MockTransport(
+                    lambda request: httpx.Response(
+                        200, json={"statusCode": "Success", "payload": {}}
+                    )
+                )
+            ),
+        )
+
+        def call() -> None:
+            registry.post_new_dpp_to_registry(RegisterDppRequest())
+
+    with pytest.raises(DppMappingClientError, match=missing_field) as exc:
+        call()
+    assert isinstance(exc.value.__cause__, ValueError)
+    assert str(exc.value.__cause__) == f"Missing required response field: {missing_field}"
+
+
 def test_codec_decoding_failure_becomes_mapping_error_with_cause() -> None:
     repo = _make_generic_repo(
         lambda request: httpx.Response(200, json={"statusCode": "Success", "payload": {}}),
@@ -745,6 +1086,18 @@ def test_codec_decoding_failure_becomes_mapping_error_with_cause() -> None:
     with pytest.raises(DppMappingClientError) as exc:
         repo.read_dpp_by_id("D")
     assert isinstance(exc.value.__cause__, ValueError)
+
+
+def test_codec_null_result_is_a_causal_mapping_error_with_operation_context() -> None:
+    repo = _make_generic_repo(
+        lambda request: httpx.Response(200, json={"statusCode": "Success", "payload": {}}),
+        _NullDecodingCodec(),
+        lambda value: None,
+    )
+    with pytest.raises(DppMappingClientError, match="deserialization") as exc:
+        repo.read_dpp_by_id("D")
+    assert isinstance(exc.value.__cause__, ValueError)
+    assert str(exc.value.__cause__) == "codec returned null DPP"
 
 
 @pytest.mark.parametrize(
