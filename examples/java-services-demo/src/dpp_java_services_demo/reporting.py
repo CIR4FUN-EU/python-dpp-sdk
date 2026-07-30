@@ -21,6 +21,16 @@ class LegacyCompatibilityStatus(StrEnum):
     LEGACY_COMPATIBILITY_NOT_RUN = "LEGACY_COMPATIBILITY_NOT_RUN"
 
 
+class InteroperabilityVerdict(StrEnum):
+    PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED = (
+        "PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED"
+    )
+    PYTHON_JAVA_SERVICES_INTEROPERABILITY_FAILED = "PYTHON_JAVA_SERVICES_INTEROPERABILITY_FAILED"
+    PYTHON_JAVA_SERVICES_INTEROPERABILITY_INCOMPLETE = (
+        "PYTHON_JAVA_SERVICES_INTEROPERABILITY_INCOMPLETE"
+    )
+
+
 @dataclass(frozen=True)
 class ScenarioResult:
     scenario_id: str
@@ -41,6 +51,15 @@ class LiveRun:
 
 
 @dataclass(frozen=True)
+class ScenarioTotals:
+    total: int
+    passed: int
+    failed: int
+    skipped: int
+    not_implemented: int
+
+
+@dataclass(frozen=True)
 class DemoReport:
     """One machine- and human-readable demo execution report."""
 
@@ -56,18 +75,49 @@ class DemoReport:
     legacy_status: LegacyCompatibilityStatus = (
         LegacyCompatibilityStatus.LEGACY_COMPATIBILITY_NOT_RUN
     )
+    python_repo_commit: str = ""
+    demo_commit: str = ""
+    contract_baseline: str = ""
+    repo_runtime_digest: str = ""
+    registry_runtime_digest: str = ""
+    maintained_repo_digest: str = ""
+    maintained_registry_digest: str = ""
+    image_equivalence: str = "NOT_CHECKED"
+    cleanup_warnings: tuple[str, ...] = ()
+    started_at: str = ""
+    ended_at: str = ""
+    verdict: InteroperabilityVerdict = (
+        InteroperabilityVerdict.PYTHON_JAVA_SERVICES_INTEROPERABILITY_INCOMPLETE
+    )
+
+
+def scenario_totals(results: tuple[ScenarioResult, ...]) -> ScenarioTotals:
+    """Count each public scenario status without reclassifying it."""
+
+    return ScenarioTotals(
+        total=len(results),
+        passed=sum(result.status is ScenarioStatus.PASSED for result in results),
+        failed=sum(result.status is ScenarioStatus.FAILED for result in results),
+        skipped=sum(result.status is ScenarioStatus.SKIPPED for result in results),
+        not_implemented=sum(result.status is ScenarioStatus.NOT_IMPLEMENTED for result in results),
+    )
 
 
 def has_required_failure(report: DemoReport) -> bool:
     """Return whether an executed required scenario prevents success."""
 
-    blocking = {ScenarioStatus.FAILED, ScenarioStatus.NOT_IMPLEMENTED}
+    blocking = {
+        ScenarioStatus.FAILED,
+        ScenarioStatus.SKIPPED,
+        ScenarioStatus.NOT_IMPLEMENTED,
+    }
     return any(result.status in blocking for result in report.results)
 
 
 def render_text(report: DemoReport) -> str:
     """Render a compact, complete report for manual use."""
 
+    totals = scenario_totals(report.results)
     lines = [
         f"mode: {report.mode}",
         f"run_id: {report.run_id}",
@@ -77,6 +127,10 @@ def render_text(report: DemoReport) -> str:
         f"repository_image: {report.repo_image}",
         f"registry_image: {report.registry_image}",
         f"legacy_status: {report.legacy_status.value}",
+        f"verdict: {report.verdict.value}",
+        f"image_equivalence: {report.image_equivalence}",
+        f"scenario_totals: total={totals.total} passed={totals.passed} failed={totals.failed} "
+        f"skipped={totals.skipped} not_implemented={totals.not_implemented}",
         "scenarios:",
     ]
     for result in report.results:
@@ -86,10 +140,14 @@ def render_text(report: DemoReport) -> str:
         )
         if result.details:
             lines.append(f"  details: {result.details}")
+    for warning in report.cleanup_warnings:
+        lines.append(f"cleanup_warning: {warning}")
     return "\n".join(lines)
 
 
 def render_json(report: DemoReport) -> str:
     """Render a stable JSON report for later CI and release integration."""
 
-    return json.dumps(asdict(report), default=str, indent=2, sort_keys=True)
+    payload = asdict(report)
+    payload["scenario_totals"] = asdict(scenario_totals(report.results))
+    return json.dumps(payload, default=str, indent=2, sort_keys=True)

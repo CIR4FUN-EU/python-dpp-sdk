@@ -78,7 +78,13 @@ def _is_legacy_profile(path: Path, repo_image: str, registry_image: str) -> bool
 def load_config(env_file: Path | None = None, *, legacy: bool = False) -> DemoConfig:
     """Load one profile, with process environment values taking precedence."""
 
-    path = (env_file or (_project_root() / "env" / "pinned.env")).resolve()
+    if env_file is None:
+        path = _project_root() / "env" / "pinned.env"
+    elif env_file.is_absolute() or env_file.is_file():
+        path = env_file
+    else:
+        path = _project_root() / env_file
+    path = path.resolve()
     values = _parse_env_file(path)
     resolved = {key: _required_value(values, key) for key in _REQUIRED_KEYS}
     is_legacy = _is_legacy_profile(

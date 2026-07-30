@@ -5,12 +5,14 @@ from uuid import UUID
 
 from dpp_java_services_demo.reporting import (
     DemoReport,
+    InteroperabilityVerdict,
     LegacyCompatibilityStatus,
     ScenarioResult,
     ScenarioStatus,
     has_required_failure,
     render_json,
     render_text,
+    scenario_totals,
 )
 
 
@@ -75,3 +77,33 @@ def test_required_failures_include_failed_and_not_implemented() -> None:
     assert has_required_failure(_report(ScenarioStatus.NOT_IMPLEMENTED))
     assert not has_required_failure(_report(ScenarioStatus.PASSED))
     assert _report().legacy_status is LegacyCompatibilityStatus.LEGACY_COMPATIBILITY_NOT_RUN
+
+
+def test_release_report_totals_metadata_cleanup_and_verdict_are_serialized() -> None:
+    report = DemoReport(
+        **{
+            **_report().__dict__,
+            "python_repo_commit": "python-commit",
+            "demo_commit": "demo-commit",
+            "contract_baseline": "contract-baseline",
+            "repo_runtime_digest": "sha256:repo",
+            "registry_runtime_digest": "sha256:registry",
+            "maintained_repo_digest": "sha256:repo",
+            "maintained_registry_digest": "sha256:registry",
+            "image_equivalence": "SAME_BUILD",
+            "cleanup_warnings": ("cleanup warning",),
+            "started_at": "2026-07-30T10:00:00Z",
+            "ended_at": "2026-07-30T10:01:00Z",
+            "verdict": InteroperabilityVerdict.PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED,
+        }
+    )
+
+    totals = scenario_totals(report.results)
+    payload = json.loads(render_json(report))
+
+    assert totals.total == 1
+    assert totals.passed == 1
+    assert payload["scenario_totals"]["passed"] == 1
+    assert payload["cleanup_warnings"] == ["cleanup warning"]
+    assert payload["image_equivalence"] == "SAME_BUILD"
+    assert payload["verdict"] == "PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED"
