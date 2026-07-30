@@ -76,10 +76,8 @@ jobs:
           rmdir "$outside"
 
           if [ "${{ inputs.profile }}" = "pinned" ]; then
-            equivalence="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["image_equivalence"])' "$report")"
-            non_image_failures="$(python -c 'import json,sys; p=json.load(open(sys.argv[1])); print(sum(r["status"] != "PASSED" and r["scenario_id"] != "IMG-02" for r in p["results"]))' "$report")"
-            if [ "$equivalence" = "DIFFERENT_BUILD" ]; then
-              test "$non_image_failures" = "0"
+            policy="$(.java-services-demo-venv/bin/python -c 'import json,sys; from dpp_java_services_demo.workflow_policy import classify_pinned_report; print(classify_pinned_report(json.load(open(sys.argv[1]))))' "$report")"
+            if [ "$policy" = "RUN_050" ]; then
               docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
                 down --remove-orphans
               DEMO_ENV_FILE="$GITHUB_WORKSPACE/$DEMO_DIR/env/0.5.0.env"
@@ -95,6 +93,7 @@ jobs:
               rmdir "$outside"
               exit 0
             fi
+            test "$policy" = "COMPLETE"
           fi
           exit "$verify_exit"
 

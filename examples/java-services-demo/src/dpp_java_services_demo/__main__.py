@@ -168,11 +168,7 @@ def _image_results(
             scenario_id="IMG-01",
             name="Runtime image digest capture",
             category="IMAGE_IDENTITY",
-            status=(
-                ScenarioStatus.PASSED
-                if identity.equivalence.value == "SAME_BUILD"
-                else ScenarioStatus.FAILED
-            ),
+            status=ScenarioStatus.PASSED,
             duration_seconds=0,
             summary="Repository and registry runtime digests recorded",
             details=(
@@ -184,7 +180,11 @@ def _image_results(
             scenario_id="IMG-02",
             name="Maintained 0.5.0 identity comparison",
             category="IMAGE_IDENTITY",
-            status=ScenarioStatus.PASSED,
+            status=(
+                ScenarioStatus.PASSED
+                if identity.equivalence.value == "SAME_BUILD"
+                else ScenarioStatus.FAILED
+            ),
             duration_seconds=0,
             summary=(
                 "Image comparison classified SAME_BUILD"

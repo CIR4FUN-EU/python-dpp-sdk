@@ -159,6 +159,8 @@ def test_different_maintained_build_blocks_pinned_verification(
     output = capsys.readouterr().out
     assert "DIFFERENT_BUILD" in output
     assert "PYTHON_JAVA_SERVICES_INTEROPERABILITY_FAILED" in output
+    assert "IMG-01 | Runtime image digest capture | IMAGE_IDENTITY | PASSED" in output
+    assert "IMG-02 | Maintained 0.5.0 identity comparison | IMAGE_IDENTITY | FAILED" in output
 
 
 def test_legacy_failure_is_informational(
