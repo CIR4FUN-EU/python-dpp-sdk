@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import date
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Self
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
@@ -49,6 +49,10 @@ class _Base(BaseModel):
     """
 
     model_config = ConfigDict(frozen=True, populate_by_name=True, extra="forbid")
+
+    def with_updates(self, **changes: object) -> Self:
+        """Return a structurally revalidated immutable copy with ``changes``."""
+        return type(self).model_validate({**self.model_dump(mode="python"), **changes})
 
 
 class OrganizationRole(StrEnum):
@@ -117,7 +121,7 @@ class Documentation(_Base):
 
 class PassportMetadata(_Base):
     uniqueProductIdentifier: UUID
-    passportUpdateDates: list[date] = Field(min_length=1)
+    passportUpdateDates: tuple[date, ...] = Field(min_length=1)
     qrCodeOrDigitalTag: OptionalStr = None
     externalDocumentationLink: OptionalStr = None
 
@@ -160,7 +164,7 @@ class Dpp(_Base):
         return self.coreDpp.passportMetadata.uniqueProductIdentifier
 
     @property
-    def passportUpdateDates(self) -> list[date]:
+    def passportUpdateDates(self) -> tuple[date, ...]:
         return self.coreDpp.passportMetadata.passportUpdateDates
 
     @property

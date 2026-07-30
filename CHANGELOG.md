@@ -7,20 +7,35 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
-- `DppRepoClient.for_local_mock()` and `DppRegistryClient.for_local_mock()` factories that
-  point the clients at the local mock services (`http://localhost:8080` / `:8081`), with an
-  optional `base_url` override and env overrides (`DPP_REPO_PORT` / `DPP_REGISTRY_PORT`, or
-  the full `DPP_REPO_BASE_URL` / `DPP_REGISTRY_BASE_URL`).
+- Python-only local-endpoint helpers and factories, with explicit `base_url` and
+  environment overrides (`DPP_REPO_BASE_URL` / `DPP_REGISTRY_BASE_URL`). They do
+  not provide or operate any service.
 - `health_check()` on both clients (probes `GET /health`).
 - Default endpoint constants and helpers exported from `dpp_sdk.clients`:
   `DEFAULT_REPO_BASE_URL`, `DEFAULT_REGISTRY_BASE_URL`, `DEFAULT_REPO_PORT`,
   `DEFAULT_REGISTRY_PORT`, `local_repo_base_url()`, `local_registry_base_url()`.
-- `integration` pytest marker and a live conformance test suite (`tests/test_integration_live.py`)
-  that exercises the clients against the running mock services and auto-skips when they are down.
+- `integration` pytest marker and opt-in live conformance tests for an
+  externally supplied endpoint.
 
 ### Changed
 - `README.md`: full lifecycle Quickstart (build → validate → store → register → read → update →
-  delete) and a guide for integration-testing against the mock services.
+  delete) now uses application-provided endpoints and no-network examples.
+
+### Changed
+- Domain models expose `with_updates()` for revalidated immutable updates; contracted collections
+  are immutable tuples in memory and continue to serialize as JSON arrays.
+- Validation documentation now describes the tested fail-fast behavior rather than aggregation.
+- Canonical repository and registry documentation uses `/v1` routes, canonical registration
+  fields and `registrationId`, compressed/versioned reads, direct data-element JSON bodies, and
+  distinct client error categories.
+- Both SDK clients support explicit `close()` and context-manager cleanup for SDK-owned HTTPX
+  resources; caller-supplied clients remain caller-owned.
+
+### Compatibility
+- `UpdateDataElementRequest` remains importable only as a compatibility DTO; it does not affect
+  canonical direct data-element PATCH bodies.
+- Legacy registry aliases and the unversioned product-ID history route are retained compatibility
+  surfaces only. New integrations should use canonical field names and versioned routes.
 
 ## [0.1.1]
 

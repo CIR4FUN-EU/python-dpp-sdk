@@ -7,6 +7,8 @@ the core validators, the furniture sub-validators, and the two cross-object rule
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from ..core.errors import DppValidationError
 from ..core.validation import validate_dpp_core
 from .model import (
@@ -30,7 +32,7 @@ def _require_not_blank(value: str | None, field_name: str) -> None:
         raise DppValidationError(f"{field_name} must not be blank")
 
 
-def _require_clean_string_list(items: list[str], list_name: str) -> None:
+def _require_clean_string_list(items: Sequence[str], list_name: str) -> None:
     """No null, blank, or (case-insensitive, trimmed) duplicate entries."""
     seen: set[str] = set()
     for index, item in enumerate(items):
@@ -145,9 +147,7 @@ def validate_product_classification(classification: ProductClassification | None
         _require_not_blank(classification.subCategory, "ProductClassification.subCategory")
 
     if _has_text(classification.subCategory) and not _has_text(classification.category):
-        raise DppValidationError(
-            "ProductClassification.subCategory is set but category is missing"
-        )
+        raise DppValidationError("ProductClassification.subCategory is set but category is missing")
     if _has_text(classification.group) and not _has_text(classification.sector):
         raise DppValidationError("ProductClassification.group is set but sector is missing")
 

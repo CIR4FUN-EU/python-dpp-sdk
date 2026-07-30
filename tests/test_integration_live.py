@@ -1,13 +1,8 @@
-"""Live conformance test against the Java mock services (``dpp-sdk-demo``).
+"""Opt-in live conformance tests for externally supplied repository endpoints.
 
-Auto-skips unless both the mock repo (``http://localhost:8080``) and the mock registry
-(``http://localhost:8081``) answer ``GET /health``. Start them first, e.g. from
-``../dpp-sdk-platform/dpp-sdk-demo`` (``docker compose up`` or the two Spring
-``mvnw spring-boot:run`` modules), then run ``pytest -m integration``.
-
-Mirrors ``HttpServiceDemoRunner.run``: create -> read-by-id -> read-by-product-id ->
-fine-granular read/update -> delete, plus a registry registration. A fresh DPP id is
-used per run so the flow is idempotent.
+The suite auto-skips unless both configured endpoints answer ``GET /health``.
+It covers create, reads, curated-element update, delete, and registry registration;
+a fresh DPP identifier keeps the interaction idempotent.
 """
 
 from __future__ import annotations
@@ -22,8 +17,8 @@ from dpp_sdk.clients import (
     RegisterDppRequest,
     local_repo_base_url,
 )
+from dpp_sdk.dpp4fun import Dpp4FunJsonCodec, validate_dpp4fun
 from dpp_sdk.dpp4fun.model import Dpp4Fun
-from dpp_sdk.dpp4fun.transport import Dpp4FunJsonCodec, validate_dpp4fun
 
 pytestmark = pytest.mark.integration
 
@@ -34,7 +29,7 @@ def repo_client() -> DppRepoClient[Dpp4Fun]:
         Dpp4FunJsonCodec(), validate_dpp4fun
     )
     if not client.health_check():
-        pytest.skip("mock-dpp-repo not running on its local endpoint")
+        pytest.skip("repository endpoint is unavailable")
     return client
 
 
@@ -42,20 +37,18 @@ def repo_client() -> DppRepoClient[Dpp4Fun]:
 def registry_client() -> DppRegistryClient:
     client = DppRegistryClient.for_local_mock()
     if not client.health_check():
-        pytest.skip("mock-eu-registry not running on its local endpoint")
+        pytest.skip("registry endpoint is unavailable")
     return client
 
 
 def _with_fresh_dpp_id(dpp: Dpp4Fun) -> Dpp4Fun:
     """Return a copy with a new ``uniqueProductIdentifier`` (drives ``dpp_id``)."""
-    meta = dpp.coreDpp.passportMetadata.model_copy(
-        update={"uniqueProductIdentifier": uuid4()}
-    )
-    core = dpp.coreDpp.model_copy(update={"passportMetadata": meta})
-    return dpp.model_copy(update={"coreDpp": core})
+    meta = dpp.coreDpp.passportMetadata.with_updates(uniqueProductIdentifier=uuid4())
+    core = dpp.coreDpp.with_updates(passportMetadata=meta)
+    return dpp.with_updates(coreDpp=core)
 
 
-def test_repo_lifecycle_against_mock(
+def test_repo_lifecycle_against_external_endpoint(
     repo_client: DppRepoClient[Dpp4Fun], valid_dpp4fun: Dpp4Fun
 ) -> None:
     dpp = _with_fresh_dpp_id(valid_dpp4fun)
@@ -69,23 +62,24 @@ def test_repo_lifecycle_against_mock(
         assert repo_client.read_dpp_by_id(dpp_id).dpp_id == dpp_id
         assert repo_client.read_dpp_by_product_id(product_id).product_id == product_id
 
-        # Fine-granular read/update against the curated element path the mock supports.
+        # Fine-granular read/update against the curated element path.
         assert (
-            repo_client.read_data_element(dpp_id, "characteristics.productName")
+            repo_client.read_data_element(dpp_id, "$.characteristics.productName")
             == dpp.productName
         )
         updated = repo_client.update_data_element(
-            dpp_id, "characteristics.productName", "Updated via live test"
+            dpp_id, "$.characteristics.productName", "Updated via live test"
         )
         assert updated == "Updated via live test"
 
         ids = repo_client.read_dpp_ids_by_product_ids([product_id], limit=10)
+        assert ids.dppIdentifiers is not None
         assert dpp_id in ids.dppIdentifiers
     finally:
         repo_client.delete_dpp_by_id(dpp_id)
 
 
-def test_registry_register_against_mock(
+def test_registry_register_against_external_endpoint(
     repo_client: DppRepoClient[Dpp4Fun],
     registry_client: DppRegistryClient,
     valid_dpp4fun: Dpp4Fun,
@@ -97,12 +91,12 @@ def test_registry_register_against_mock(
     try:
         response = registry_client.post_new_dpp_to_registry(
             RegisterDppRequest(
-                productIdentifier=dpp.product_id,
-                dppIdentifier=dpp_id,
-                operatorIdentifier="operator-123",
-                repoUrl=local_repo_base_url(),
+                uniqueProductIdentifier=dpp.product_id,
+                digitalProductPassportId=dpp_id,
+                uniqueEconomicOperatorIdentifier="operator-123",
+                dppApiEndpoint=local_repo_base_url(),
             )
         )
-        assert response.registryIdentifier
+        assert response.registrationId
     finally:
         repo_client.delete_dpp_by_id(dpp_id)

@@ -39,6 +39,4 @@ def local_repo_base_url() -> str:
 
 def local_registry_base_url() -> str:
     """Resolve the local mock-registry base URL, honoring env overrides at call time."""
-    return _local_base_url(
-        "DPP_REGISTRY_BASE_URL", "DPP_REGISTRY_PORT", DEFAULT_REGISTRY_PORT
-    )
+    return _local_base_url("DPP_REGISTRY_BASE_URL", "DPP_REGISTRY_PORT", DEFAULT_REGISTRY_PORT)

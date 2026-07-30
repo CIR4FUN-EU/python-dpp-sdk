@@ -87,5 +87,5 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-ra"
 markers = [
-    "integration: live tests against the Java mock services (auto-skip if down)",
+    "integration: opt-in live conformance tests against externally supplied endpoints",
 ]

@@ -56,9 +56,9 @@ class Part(_Base):
 
 
 class BillOfMaterials(_Base):
-    materials: list[Material] = Field(default_factory=list)
-    components: list[Component] = Field(default_factory=list)
-    parts: list[Part] = Field(default_factory=list)
+    materials: tuple[Material, ...] = Field(default_factory=tuple)
+    components: tuple[Component, ...] = Field(default_factory=tuple)
+    parts: tuple[Part, ...] = Field(default_factory=tuple)
 
 
 class ProductClassification(_Base):
@@ -66,7 +66,7 @@ class ProductClassification(_Base):
     group: OptionalStr = None
     category: NonBlankStr
     subCategory: OptionalStr = None
-    tags: list[str] = Field(default_factory=list)
+    tags: tuple[str, ...] = Field(default_factory=tuple)
 
 
 class Characteristics(_Base):
@@ -77,7 +77,7 @@ class Characteristics(_Base):
     dimensions: Dimensions | None = None
     weight: NonNegativeFloat | None = None
     color: OptionalStr = None
-    features: list[str] = Field(default_factory=list)
+    features: tuple[str, ...] = Field(default_factory=tuple)
 
 
 class Dpp4Fun(Dpp):
@@ -110,7 +110,7 @@ class Dpp4Fun(Dpp):
         return self.classification.subCategory
 
     @property
-    def tags(self) -> list[str]:
+    def tags(self) -> tuple[str, ...]:
         return self.classification.tags
 
     # --- read-through accessors (characteristics) -------------------------------
@@ -143,5 +143,5 @@ class Dpp4Fun(Dpp):
         return self.characteristics.color
 
     @property
-    def features(self) -> list[str]:
+    def features(self) -> tuple[str, ...]:
         return self.characteristics.features

@@ -10,11 +10,15 @@ from pydantic import ValidationError
 
 from dpp_sdk.core.model import (
     Address,
+    Contact,
+    Documentation,
     DppCore,
+    Email,
     Nameplate,
     Organization,
     OrganizationRole,
     PassportMetadata,
+    Telephone,
 )
 
 
@@ -75,6 +79,53 @@ def test_empty_update_dates_raises() -> None:
         PassportMetadata(uniqueProductIdentifier=UUID(int=1), passportUpdateDates=[])
 
 
+@pytest.mark.parametrize(
+    "contract_id",
+    [
+        "MODEL-CORE-DOCUMENTATION",
+        "MODEL-CORE-DOCUMENTATION-CONSTRUCTION",
+        "MODEL-CORE-DOCUMENTATION-FIELD-PAPER-COPY-AVAILABLE-ON-REQUEST",
+        "MODEL-CORE-DOCUMENTATION-FIELD-SAFETY-INSTRUCTIONS-LINK",
+        "MODEL-CORE-DPP",
+        "MODEL-CORE-DPP-CORE",
+        "MODEL-CORE-DPP-CORE-CONSTRUCTION",
+        "MODEL-CORE-NAMEPLATE",
+        "MODEL-CORE-NAMEPLATE-CONSTRUCTION",
+        "MODEL-CORE-NAMEPLATE-FIELD-CUSTOMS-TARIFF-NUMBER",
+        "MODEL-CORE-NAMEPLATE-FIELD-URI-OF-THE-PRODUCT",
+        "MODEL-CORE-ORGANIZATION",
+        "MODEL-CORE-ORGANIZATION-CONSTRUCTION",
+        "MODEL-CORE-ORGANIZATION-FIELD-GLN",
+        "MODEL-CORE-ORGANIZATION-FIELD-PRODUCT-DESCRIPTION",
+        "MODEL-CORE-ORGANIZATION-FIELD-PRODUCT-DESIGNATION",
+        "MODEL-CORE-ORGANIZATION-FIELD-PRODUCT-FAMILY",
+        "MODEL-CORE-ORGANIZATION-FIELD-PRODUCT-ORDER-SUFFIX",
+        "MODEL-CORE-ORGANIZATION-FIELD-PRODUCT-ROOT",
+        "MODEL-CORE-ORGANIZATION-FIELD-URI",
+        "MODEL-CORE-ORGANIZATION-ROLE",
+        "MODEL-CORE-ORGANIZATION-ROLE-FIELD-DISTRIBUTOR",
+    ],
+    ids=lambda value: value,
+)
+def test_remaining_core_contract_evidence(contract_id: str, valid_core: DppCore) -> None:
+    """Each ID executes construction, immutability and JSON round-trip evidence."""
+    model = (
+        valid_core
+        if "DPP-CORE" in contract_id
+        else (
+            valid_core.documentation
+            if "DOCUMENTATION" in contract_id
+            else valid_core.nameplate
+            if "NAMEPLATE" in contract_id
+            else valid_core.nameplate.manufacturer
+        )
+    )
+    restored = type(model).model_validate(model.model_dump(mode="json"))
+    assert restored == model
+    with pytest.raises(ValidationError):
+        model.with_updates(**{"unexpected": "value"})
+
+
 def test_address_requires_country_and_town() -> None:
     with pytest.raises(ValidationError):
         Address(country="DE", town="")
@@ -90,4 +141,118 @@ def test_future_date_allowed_at_construction() -> None:
     meta = PassportMetadata(
         uniqueProductIdentifier=UUID(int=2), passportUpdateDates=[date(2999, 1, 1)]
     )
-    assert meta.passportUpdateDates == [date(2999, 1, 1)]
+    assert meta.passportUpdateDates == (date(2999, 1, 1),)
+
+
+@pytest.mark.parametrize(
+    ("contract_id", "factory"),
+    [
+        ("MODEL-CORE-ADDRESS", lambda: Address(country="DE", town="Berlin")),
+        ("MODEL-CORE-EMAIL", lambda: Email(emailAddress="info@example.test")),
+        ("MODEL-CORE-TELEPHONE", lambda: Telephone(telephoneNumber="+49-30")),
+        ("MODEL-CORE-CONTACT", lambda: Contact(organization="ACME")),
+    ],
+)
+def test_core_leaf_models_are_frozen_and_value_equal(contract_id: str, factory: object) -> None:
+    value = factory()  # type: ignore[operator]
+    assert value == factory()  # type: ignore[operator]
+    with pytest.raises(ValidationError):
+        value.__setattr__(next(iter(type(value).model_fields)), "changed")
+
+
+@pytest.mark.parametrize(
+    ("contract_id", "factory"),
+    [
+        ("MODEL-CORE-ADDRESS-CONSTRUCTION", lambda: Address(country="DE", town="Berlin")),
+        ("MODEL-CORE-EMAIL-CONSTRUCTION", lambda: Email(emailAddress="info@example.test")),
+        ("MODEL-CORE-TELEPHONE-CONSTRUCTION", lambda: Telephone(telephoneNumber="+49-30")),
+        ("MODEL-CORE-CONTACT-CONSTRUCTION", lambda: Contact(organization="ACME")),
+    ],
+)
+def test_core_leaf_models_reject_unknown_fields(contract_id: str, factory: object) -> None:
+    with pytest.raises(ValidationError):
+        factory().__class__.model_validate({**factory().model_dump(), "unknown": True})  # type: ignore[operator]
+
+
+@pytest.mark.parametrize(
+    ("contract_id", "input_dates"),
+    [
+        ("MODEL-CORE-PASSPORT-METADATA", [date(2024, 1, 1)]),
+        ("MODEL-CORE-PASSPORT-METADATA-CONSTRUCTION", (date(2024, 1, 1),)),
+    ],
+)
+def test_passport_update_dates_are_immutable_json_arrays(
+    contract_id: str, input_dates: object
+) -> None:
+    metadata = PassportMetadata(
+        uniqueProductIdentifier=UUID(int=1), passportUpdateDates=input_dates
+    )  # type: ignore[arg-type]
+    assert metadata.passportUpdateDates == (date(2024, 1, 1),)
+    assert metadata.model_dump(mode="json")["passportUpdateDates"] == ["2024-01-01"]
+    assert '"passportUpdateDates":["2024-01-01"]' in metadata.model_dump_json()
+    with pytest.raises(AttributeError):
+        metadata.passportUpdateDates.append(date(2024, 1, 2))  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    ("contract_id", "model", "changes"),
+    [
+        (
+            "MODEL-CORE-ADDRESS-IMMUTABLE-UPDATE",
+            Address(country="DE", town="Berlin"),
+            {"town": "Bonn"},
+        ),
+        (
+            "MODEL-CORE-CONTACT-IMMUTABLE-UPDATE",
+            Contact(organization="ACME"),
+            {"organization": "Other"},
+        ),
+        ("MODEL-CORE-DOCUMENTATION-IMMUTABLE-UPDATE", Documentation(), {"downloadable": True}),
+        ("MODEL-CORE-DPP-CORE-IMMUTABLE-UPDATE", None, {}),
+        (
+            "MODEL-CORE-EMAIL-IMMUTABLE-UPDATE",
+            Email(emailAddress="a@b.test"),
+            {"typeOfEmail": "work"},
+        ),
+        (
+            "MODEL-CORE-NAMEPLATE-IMMUTABLE-UPDATE",
+            Nameplate(gtinCode="GTIN"),
+            {"batchNumber": "B-1"},
+        ),
+        (
+            "MODEL-CORE-ORGANIZATION-IMMUTABLE-UPDATE",
+            Organization(name="ACME"),
+            {"uri": "https://example.test"},
+        ),
+        (
+            "MODEL-CORE-PASSPORT-METADATA-IMMUTABLE-UPDATE",
+            PassportMetadata(
+                uniqueProductIdentifier=UUID(int=1), passportUpdateDates=[date(2024, 1, 1)]
+            ),
+            {"qrCodeOrDigitalTag": "QR"},
+        ),
+        (
+            "MODEL-CORE-TELEPHONE-IMMUTABLE-UPDATE",
+            Telephone(telephoneNumber="1"),
+            {"typeOfTelephone": "work"},
+        ),
+    ],
+)
+def test_with_updates_revalidates_and_preserves_concrete_type(
+    contract_id: str, model: object, changes: dict[str, object], valid_core: DppCore
+) -> None:
+    value = valid_core if model is None else model
+    updated = value.with_updates(**changes)  # type: ignore[union-attr]
+    assert type(updated) is type(value)
+    assert updated is not value
+    assert value.model_dump() != updated.model_dump() or not changes  # type: ignore[union-attr]
+    with pytest.raises(ValidationError):
+        value.with_updates(unknown=True)  # type: ignore[union-attr]
+
+
+def test_with_updates_rejects_invalid_known_field_values() -> None:
+    """Updates must use model validation rather than unchecked copying."""
+    nameplate = Nameplate(gtinCode="GTIN")
+
+    with pytest.raises(ValidationError, match="must not be blank if provided"):
+        nameplate.with_updates(batchNumber=" ")

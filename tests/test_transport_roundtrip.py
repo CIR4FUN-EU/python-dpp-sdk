@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+from pydantic import ValidationError
+
+from dpp_sdk.core.errors import DppMappingError
 from dpp_sdk.dpp4fun.model import Dpp4Fun
 from dpp_sdk.dpp4fun.transport import from_json, from_json_and_validate, to_json
 
@@ -47,8 +51,8 @@ def test_nested_takes_precedence_over_duplicate_flat_keys(valid_dpp4fun: Dpp4Fun
 
 
 def test_empty_lists_serialized_not_null(valid_dpp4fun: Dpp4Fun) -> None:
-    minimal = valid_dpp4fun.model_copy(
-        update={"classification": valid_dpp4fun.classification.model_copy(update={"tags": []})}
+    minimal = valid_dpp4fun.with_updates(
+        classification=valid_dpp4fun.classification.with_updates(tags=[])
     )
     data = json.loads(to_json(minimal))
     assert data["classification"]["tags"] == []
@@ -64,3 +68,25 @@ def test_codec_is_usable_as_dpp_codec(valid_dpp4fun: Dpp4Fun) -> None:
 
     codec = Dpp4FunJsonCodec()
     assert codec.from_json(codec.to_json(valid_dpp4fun)) == valid_dpp4fun
+
+
+@pytest.mark.parametrize(
+    "contract_id",
+    [pytest.param("CODEC-MALFORMED-JSON-001", id="CODEC-MALFORMED-JSON-001")],
+)
+def test_malformed_json_is_mapping_error_with_syntax_cause(contract_id: str) -> None:
+    with pytest.raises(DppMappingError) as exc:
+        from_json("{not-json")
+    assert isinstance(exc.value.__cause__, json.JSONDecodeError)
+
+
+@pytest.mark.parametrize(
+    "contract_id",
+    [pytest.param("MAPPING-DOMAIN-PAYLOAD-001", id="MAPPING-DOMAIN-PAYLOAD-001")],
+)
+def test_structurally_unmappable_json_is_mapping_error_with_pydantic_cause(
+    contract_id: str,
+) -> None:
+    with pytest.raises(DppMappingError) as exc:
+        from_json('{"classification": {}}')
+    assert isinstance(exc.value.__cause__, ValidationError)

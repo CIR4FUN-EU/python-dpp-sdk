@@ -125,9 +125,7 @@ def validate_nameplate(nameplate: Nameplate | None) -> None:
     if nameplate.supplier is not None:
         validate_organization(nameplate.supplier)
         if nameplate.supplier.role is None:
-            raise DppValidationError(
-                "Nameplate.supplier must have role SUPPLIER, but role is null"
-            )
+            raise DppValidationError("Nameplate.supplier must have role SUPPLIER, but role is null")
         if nameplate.supplier.role is not OrganizationRole.SUPPLIER:
             raise DppValidationError(
                 "Nameplate.supplier must have role SUPPLIER, but got "

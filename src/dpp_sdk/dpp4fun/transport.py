@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from pydantic import ValidationError
+
 from ..core.errors import DppMappingError
 from .model import Dpp4Fun
 from .validation import validate_dpp4fun
@@ -73,7 +75,10 @@ def from_json(raw: str) -> Dpp4Fun:
         raise DppMappingError(f"Failed to deserialize DPP JSON: {exc}") from exc
     if isinstance(tree, dict):
         _normalize_transport(tree)
-    return Dpp4Fun.model_validate(tree)
+    try:
+        return Dpp4Fun.model_validate(tree)
+    except ValidationError as exc:
+        raise DppMappingError(f"Failed to map DPP JSON to Dpp4Fun: {exc}") from exc
 
 
 def from_json_and_validate(raw: str) -> Dpp4Fun:
