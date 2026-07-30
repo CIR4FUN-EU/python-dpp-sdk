@@ -104,6 +104,7 @@ $project = "dpp-py-demo-$([guid]::NewGuid().ToString('N'))"
 $envFile = (Resolve-Path .\env\pinned.env).Path
 $report = (Join-Path (Get-Location) "verification-report.json")
 $demoPython = (Resolve-Path ..\..\.java-services-demo-venv\Scripts\python.exe).Path
+$sdkWheel = (Resolve-Path ..\..\dist\dpp_sdk-0.2.1-py3-none-any.whl).Path
 
 docker compose -p $project --env-file $envFile pull
 docker compose -p $project --env-file $envFile up -d --wait --wait-timeout 120
@@ -112,7 +113,8 @@ docker compose -p $project --env-file $envFile ps --all
 Push-Location ([System.IO.Path]::GetTempPath())
 try {
   & $demoPython -I -m dpp_java_services_demo verify `
-    --env-file $envFile --report-file $report
+    --env-file $envFile --compose-project $project --sdk-wheel $sdkWheel `
+    --report-file $report
 } finally {
   Pop-Location
 }
@@ -128,6 +130,7 @@ project="dpp-py-demo-$(python -c 'import uuid; print(uuid.uuid4().hex)')"
 env_file="$(pwd)/env/pinned.env"
 report="$(pwd)/verification-report.json"
 demo_python="$(cd ../.. && pwd)/.java-services-demo-venv/bin/python"
+sdk_wheel="$(cd ../.. && pwd)/dist/dpp_sdk-0.2.1-py3-none-any.whl"
 
 docker compose -p "$project" --env-file "$env_file" pull
 docker compose -p "$project" --env-file "$env_file" up -d --wait --wait-timeout 120
@@ -135,7 +138,8 @@ docker compose -p "$project" --env-file "$env_file" ps --all
 
 outside="$(mktemp -d)"
 (cd "$outside" && "$demo_python" -I \
-  -m dpp_java_services_demo verify --env-file "$env_file" --report-file "$report")
+  -m dpp_java_services_demo verify --env-file "$env_file" \
+  --compose-project "$project" --sdk-wheel "$sdk_wheel" --report-file "$report")
 rmdir "$outside"
 ```
 
@@ -182,18 +186,21 @@ The release gates are:
 3. Dynamic identity comparison between the executed images and fresh `0.5.0` resolution.
 
 When the pinned and `0.5.0` digests are `SAME_BUILD`, one complete scenario execution plus the
-recorded equality is sufficient to avoid a duplicate run. If they are `DIFFERENT_BUILD`, run the
-complete suite separately with `env/0.5.0.env`.
+recorded equality is sufficient to avoid a duplicate run. `DIFFERENT_BUILD` makes the pinned
+`verify` blocking until the complete suite runs separately with `env/0.5.0.env`. The manual
+workflow performs that conditional second run automatically.
 
 Optional legacy command:
 
 ```powershell
 python -m dpp_java_services_demo verify --env-file env\0.4.0.env --legacy `
+  --compose-project $project --sdk-wheel $sdkWheel `
   --report-file legacy-verification-report.json
 ```
 
 ```bash
 python -m dpp_java_services_demo verify --env-file env/0.4.0.env --legacy \
+  --compose-project "$project" --sdk-wheel "$sdk_wheel" \
   --report-file legacy-verification-report.json
 ```
 
@@ -213,9 +220,10 @@ The first command precisely skips the two marked live tests. The second requires
 services and converts readiness or scenario failures into test failures.
 
 The JSON report records scenario fields and totals, Python repository/demo commit, contract
-baseline, exact configured image references, local runtime digests, fresh maintained digests,
-image equivalence, SDK version/location, timestamps, cleanup warnings, legacy status, and one
-exact interoperability verdict. The only full maintained success verdict is
+baseline, exact configured image references, serving container IDs and image IDs, runtime
+digests bound through those containers, fresh maintained digests, exact SDK wheel path/hash and
+installed archive hash, exclusions, timestamps, cleanup warnings, legacy status, and one exact
+interoperability verdict. The only full maintained success verdict is
 `PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED`.
 
 ## Limitations

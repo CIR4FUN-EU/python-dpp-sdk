@@ -57,16 +57,46 @@ jobs:
         run: |
           mkdir -p artifacts
           outside="$(mktemp -d)"
+          sdk_wheel="$GITHUB_WORKSPACE/dist/dpp_sdk-0.2.1-py3-none-any.whl"
+          report="$GITHUB_WORKSPACE/artifacts/verification-report-${{ inputs.profile }}.json"
+          set +e
           if [ "${{ inputs.profile }}" = "0.4.0" ]; then
             (cd "$outside" && "$GITHUB_WORKSPACE/.java-services-demo-venv/bin/python" -I \
               -m dpp_java_services_demo verify --env-file "$DEMO_ENV_FILE" --legacy \
-              --report-file "$GITHUB_WORKSPACE/artifacts/verification-report.json")
+              --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
+              --report-file "$report")
           else
             (cd "$outside" && "$GITHUB_WORKSPACE/.java-services-demo-venv/bin/python" -I \
               -m dpp_java_services_demo verify --env-file "$DEMO_ENV_FILE" \
-              --report-file "$GITHUB_WORKSPACE/artifacts/verification-report.json")
+              --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
+              --report-file "$report")
           fi
+          verify_exit=$?
+          set -e
           rmdir "$outside"
+
+          if [ "${{ inputs.profile }}" = "pinned" ]; then
+            equivalence="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["image_equivalence"])' "$report")"
+            non_image_failures="$(python -c 'import json,sys; p=json.load(open(sys.argv[1])); print(sum(r["status"] != "PASSED" and r["scenario_id"] != "IMG-02" for r in p["results"]))' "$report")"
+            if [ "$equivalence" = "DIFFERENT_BUILD" ]; then
+              test "$non_image_failures" = "0"
+              docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+                down --remove-orphans
+              DEMO_ENV_FILE="$GITHUB_WORKSPACE/$DEMO_DIR/env/0.5.0.env"
+              echo "DEMO_ENV_FILE=$DEMO_ENV_FILE" >> "$GITHUB_ENV"
+              docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" pull
+              docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+                up -d --wait --wait-timeout 120
+              outside="$(mktemp -d)"
+              (cd "$outside" && "$GITHUB_WORKSPACE/.java-services-demo-venv/bin/python" -I \
+                -m dpp_java_services_demo verify --env-file "$DEMO_ENV_FILE" \
+                --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
+                --report-file "$GITHUB_WORKSPACE/artifacts/verification-report-0.5.0.json")
+              rmdir "$outside"
+              exit 0
+            fi
+          fi
+          exit "$verify_exit"
 
       - name: Capture Compose evidence
         if: always()

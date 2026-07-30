@@ -30,17 +30,25 @@ def _config() -> DemoConfig:
 
 def _runner(command: Sequence[str]) -> str:
     joined = " ".join(command)
+    if command[1] == "ps":
+        return "repo-container" if "dpp-repo-api" in joined else "registry-container"
+    if command[1] == "inspect" and ".Config.Image" in joined:
+        return _config().repo_image if "repo-container" in joined else _config().registry_image
+    if command[1] == "inspect" and ".Image" in joined:
+        return "sha256:" + (("c" if "repo-container" in joined else "d") * 64)
     if tuple(command[1:3]) == ("image", "inspect"):
-        digest = REPO_DIGEST if "repo-api" in joined else REGISTRY_DIGEST
-        repository = "dpp-repo-api" if "repo-api" in joined else "dpp-registry-api"
+        digest = REPO_DIGEST if ("c" * 64) in joined else REGISTRY_DIGEST
+        repository = "dpp-repo-api" if ("c" * 64) in joined else "dpp-registry-api"
         return f'["ghcr.io/cir4fun-eu/{repository}@{digest}"]'
     digest = REPO_DIGEST if "repo-api" in joined else REGISTRY_DIGEST
     return f"Name: example\nDigest: {digest}\n"
 
 
 def test_capture_records_runtime_and_fresh_maintained_digests() -> None:
-    report = capture_image_identities(_config(), runner=_runner)
+    report = capture_image_identities(_config(), compose_project="test-project", runner=_runner)
 
+    assert report.repo_container_id == "repo-container"
+    assert report.registry_container_id == "registry-container"
     assert report.repo_runtime_digest == REPO_DIGEST
     assert report.registry_runtime_digest == REGISTRY_DIGEST
     assert report.maintained_repo_digest == REPO_DIGEST
@@ -50,15 +58,40 @@ def test_capture_records_runtime_and_fresh_maintained_digests() -> None:
 
 def test_capture_classifies_changed_maintained_image() -> None:
     def changed_runner(command: Sequence[str]) -> str:
-        if tuple(command[1:3]) == ("image", "inspect"):
-            return _runner(command)
-        return "Name: example\nDigest: sha256:" + ("a" * 64)
+        if tuple(command[1:4]) == ("buildx", "imagetools", "inspect"):
+            return "Name: example\nDigest: sha256:" + ("a" * 64)
+        return _runner(command)
 
-    report = capture_image_identities(_config(), runner=changed_runner)
+    report = capture_image_identities(
+        _config(), compose_project="test-project", runner=changed_runner
+    )
 
     assert report.equivalence is ImageEquivalence.DIFFERENT_BUILD
 
 
 def test_missing_digest_is_an_explicit_inspection_failure() -> None:
+    def missing_digest_runner(command: Sequence[str]) -> str:
+        if tuple(command[1:3]) == ("image", "inspect"):
+            return "[]"
+        return _runner(command)
+
     with pytest.raises(ImageInspectionError, match="digest"):
-        capture_image_identities(_config(), runner=lambda _command: "Name: example")
+        capture_image_identities(
+            _config(),
+            compose_project="test-project",
+            runner=missing_digest_runner,
+        )
+
+
+def test_container_must_use_the_configured_image_reference() -> None:
+    def mismatched_runner(command: Sequence[str]) -> str:
+        if command[1] == "inspect" and ".Config.Image" in " ".join(command):
+            return "ghcr.io/example/unrelated:latest"
+        return _runner(command)
+
+    with pytest.raises(ImageInspectionError, match="configured image"):
+        capture_image_identities(
+            _config(),
+            compose_project="test-project",
+            runner=mismatched_runner,
+        )

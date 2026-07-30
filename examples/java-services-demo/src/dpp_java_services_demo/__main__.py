@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -53,6 +56,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
     parser.add_argument("--report-file", type=Path, help="Write retained JSON evidence atomically")
+    parser.add_argument(
+        "--compose-project",
+        help="Compose project whose serving containers must be bound to image evidence",
+    )
+    parser.add_argument(
+        "--sdk-wheel",
+        type=Path,
+        help="Exact dpp-sdk wheel whose installed archive hash must match",
+    )
     return parser
 
 
@@ -83,11 +95,43 @@ def _git_commit(start: Path) -> str:
     return completed.stdout.strip() or "UNKNOWN"
 
 
-def _installed_sdk_result(config: DemoConfig) -> ScenarioResult:
+def _installed_sdk_result(config: DemoConfig, sdk_wheel: Path | None) -> ScenarioResult:
     sdk_file = Path(dpp_sdk.__file__ or "").resolve()
     git_root = _find_git_root(config.env_file)
     source_package = git_root / "src" / "dpp_sdk" if git_root is not None else None
-    installed = source_package is None or not sdk_file.is_relative_to(source_package.resolve())
+    details = str(sdk_file)
+    installed = False
+    if sdk_wheel is not None:
+        wheel = sdk_wheel.resolve()
+        try:
+            wheel_sha256 = hashlib.sha256(wheel.read_bytes()).hexdigest()
+            installed_distribution = distribution("dpp-sdk")
+            distribution_root = Path(installed_distribution.locate_file("")).resolve()
+            prefix = Path(sys.prefix).resolve()
+            direct_url_raw = installed_distribution.read_text("direct_url.json")
+            if direct_url_raw is None:
+                raise ValueError("installed distribution has no direct_url.json")
+            direct_url = json.loads(direct_url_raw)
+            installed_hash = direct_url.get("archive_info", {}).get("hashes", {}).get("sha256")
+            editable = direct_url.get("dir_info", {}).get("editable", False)
+            outside_source = source_package is None or not sdk_file.is_relative_to(
+                source_package.resolve()
+            )
+            installed = (
+                wheel.is_file()
+                and sdk_file.is_relative_to(prefix)
+                and distribution_root.is_relative_to(prefix)
+                and outside_source
+                and not editable
+                and installed_hash == wheel_sha256
+                and installed_distribution.version == dpp_sdk.__version__
+            )
+            details = (
+                f"sdk={sdk_file}; wheel={wheel}; wheel_sha256={wheel_sha256}; "
+                f"installed_archive_sha256={installed_hash}"
+            )
+        except (OSError, PackageNotFoundError, ValueError, json.JSONDecodeError) as exc:
+            details = f"sdk={sdk_file}; provenance_error={type(exc).__name__}: {exc}"
     return ScenarioResult(
         scenario_id="PKG-01",
         name="Installed SDK import isolation",
@@ -95,11 +139,11 @@ def _installed_sdk_result(config: DemoConfig) -> ScenarioResult:
         status=ScenarioStatus.PASSED if installed else ScenarioStatus.FAILED,
         duration_seconds=0,
         summary=(
-            "dpp_sdk resolves outside the source checkout"
+            "dpp_sdk is installed from the exact supplied wheel in the active environment"
             if installed
-            else "dpp_sdk resolves from the source checkout"
+            else "dpp_sdk wheel provenance could not be proven"
         ),
-        details=str(sdk_file),
+        details=details,
     )
 
 
@@ -124,7 +168,11 @@ def _image_results(
             scenario_id="IMG-01",
             name="Runtime image digest capture",
             category="IMAGE_IDENTITY",
-            status=ScenarioStatus.PASSED,
+            status=(
+                ScenarioStatus.PASSED
+                if identity.equivalence.value == "SAME_BUILD"
+                else ScenarioStatus.FAILED
+            ),
             duration_seconds=0,
             summary="Repository and registry runtime digests recorded",
             details=(
@@ -138,7 +186,11 @@ def _image_results(
             category="IMAGE_IDENTITY",
             status=ScenarioStatus.PASSED,
             duration_seconds=0,
-            summary=f"Image comparison classified {identity.equivalence.value}",
+            summary=(
+                "Image comparison classified SAME_BUILD"
+                if identity.equivalence.value == "SAME_BUILD"
+                else "DIFFERENT_BUILD requires a separate full maintained 0.5.0 verification"
+            ),
             details=(
                 f"repository={identity.maintained_repo_digest}; "
                 f"registry={identity.maintained_registry_digest}"
@@ -168,7 +220,13 @@ def _summary(mode: str) -> str:
     }[mode]
 
 
-def _report(mode: str, config: DemoConfig) -> DemoReport:
+def _report(
+    mode: str,
+    config: DemoConfig,
+    *,
+    compose_project: str | None = None,
+    sdk_wheel: Path | None = None,
+) -> DemoReport:
     started_at = _now()
     run_id = uuid4()
     results: tuple[ScenarioResult, ...] = ()
@@ -185,9 +243,12 @@ def _report(mode: str, config: DemoConfig) -> DemoReport:
         results = (*results, *live.results)
         cleanup_warnings = live.cleanup_warnings
     if mode == "verify":
-        results = (*results, _installed_sdk_result(config))
+        results = (*results, _installed_sdk_result(config, sdk_wheel))
         try:
-            image_identity = capture_image_identities(config)
+            image_identity = capture_image_identities(
+                config,
+                compose_project=compose_project or "",
+            )
         except ImageInspectionError as exc:
             image_error = exc
         results = (*results, *_image_results(image_identity, image_error))
@@ -223,6 +284,12 @@ def _report(mode: str, config: DemoConfig) -> DemoReport:
         partial=mode != "verify" or config.legacy,
         sdk_version=dpp_sdk.__version__,
         sdk_location=str(Path(sdk_file).resolve()) if sdk_file is not None else "<unknown>",
+        sdk_wheel=str(sdk_wheel.resolve()) if sdk_wheel is not None else "",
+        sdk_wheel_sha256=(
+            hashlib.sha256(sdk_wheel.resolve().read_bytes()).hexdigest()
+            if sdk_wheel is not None and sdk_wheel.resolve().is_file()
+            else ""
+        ),
         repo_image=config.repo_image,
         registry_image=config.registry_image,
         legacy_status=legacy_status,
@@ -235,6 +302,16 @@ def _report(mode: str, config: DemoConfig) -> DemoReport:
         registry_runtime_digest=(
             image_identity.registry_runtime_digest if image_identity is not None else ""
         ),
+        repo_container_id=(image_identity.repo_container_id if image_identity is not None else ""),
+        registry_container_id=(
+            image_identity.registry_container_id if image_identity is not None else ""
+        ),
+        repo_container_image_id=(
+            image_identity.repo_container_image_id if image_identity is not None else ""
+        ),
+        registry_container_image_id=(
+            image_identity.registry_container_image_id if image_identity is not None else ""
+        ),
         maintained_repo_digest=(
             image_identity.maintained_repo_digest if image_identity is not None else ""
         ),
@@ -245,6 +322,10 @@ def _report(mode: str, config: DemoConfig) -> DemoReport:
             image_identity.equivalence.value if image_identity is not None else "NOT_CHECKED"
         ),
         cleanup_warnings=cleanup_warnings,
+        excluded_scenarios=(
+            "REG-09: no public registry read-back API",
+            "REG-10: no public registry cleanup API",
+        ),
         started_at=started_at,
         ended_at=_now(),
         verdict=verdict,
@@ -273,7 +354,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
-    report = _report(args.mode, config)
+    report = _report(
+        args.mode,
+        config,
+        compose_project=args.compose_project,
+        sdk_wheel=args.sdk_wheel,
+    )
     if args.report_file is not None:
         _write_report(args.report_file, report)
     print(render_json(report) if args.json else render_text(report))

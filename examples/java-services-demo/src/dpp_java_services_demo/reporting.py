@@ -72,6 +72,8 @@ class DemoReport:
     sdk_location: str
     repo_image: str
     registry_image: str
+    sdk_wheel: str = ""
+    sdk_wheel_sha256: str = ""
     legacy_status: LegacyCompatibilityStatus = (
         LegacyCompatibilityStatus.LEGACY_COMPATIBILITY_NOT_RUN
     )
@@ -80,10 +82,15 @@ class DemoReport:
     contract_baseline: str = ""
     repo_runtime_digest: str = ""
     registry_runtime_digest: str = ""
+    repo_container_id: str = ""
+    registry_container_id: str = ""
+    repo_container_image_id: str = ""
+    registry_container_image_id: str = ""
     maintained_repo_digest: str = ""
     maintained_registry_digest: str = ""
     image_equivalence: str = "NOT_CHECKED"
     cleanup_warnings: tuple[str, ...] = ()
+    excluded_scenarios: tuple[str, ...] = ()
     started_at: str = ""
     ended_at: str = ""
     verdict: InteroperabilityVerdict = (
@@ -124,8 +131,15 @@ def render_text(report: DemoReport) -> str:
         f"summary: {report.summary}",
         f"partial: {str(report.partial).lower()}",
         f"sdk: {report.sdk_version} ({report.sdk_location})",
+        f"sdk_wheel: {report.sdk_wheel}",
+        f"sdk_wheel_sha256: {report.sdk_wheel_sha256}",
         f"repository_image: {report.repo_image}",
         f"registry_image: {report.registry_image}",
+        f"repository_container: {report.repo_container_id} ({report.repo_container_image_id})",
+        (
+            f"registry_container: {report.registry_container_id} "
+            f"({report.registry_container_image_id})"
+        ),
         f"legacy_status: {report.legacy_status.value}",
         f"verdict: {report.verdict.value}",
         f"image_equivalence: {report.image_equivalence}",
@@ -142,6 +156,8 @@ def render_text(report: DemoReport) -> str:
             lines.append(f"  details: {result.details}")
     for warning in report.cleanup_warnings:
         lines.append(f"cleanup_warning: {warning}")
+    for exclusion in report.excluded_scenarios:
+        lines.append(f"excluded_scenario: {exclusion}")
     return "\n".join(lines)
 
 
