@@ -1,176 +1,231 @@
 # Python SDK Java-services demo
 
-This directory is an isolated consumer of the published `dpp-sdk` package. It demonstrates the
-public Python SDK and provides pull-only Compose infrastructure for the published Java DPP
-repository and registry images. It does not add backend, persistence, Docker, demo-service, or
-EDC responsibilities to `dpp_sdk`.
+This is an isolated, unpublished consumer of the public `dpp-sdk` package. It demonstrates the
+SDK locally and exercises its public clients against disposable, published Java DPP repository
+and registry images. It adds no backend, persistence, Docker, demo-service, EDC, or dataspace
+responsibility to `dpp_sdk`.
 
-This foundation implements all SDK-local scenarios. Live repository and registry operations are
-deliberately deferred to the next implementation phase; the `services`, `all`, and `verify` modes
-report `NOT_IMPLEMENTED` and exit nonzero until that work is complete.
+The CLI never pulls, starts, stops, or removes containers. The operator or CI workflow owns the
+entire Compose lifecycle.
 
-## Compatibility and image policy
+## Compatibility and evidence policy
 
-The reproducible default is [`env/pinned.env`](env/pinned.env), whose tag-plus-digest references
-are immutable. [`env/0.5.0.env`](env/0.5.0.env) is the maintained semantic-version profile. A
-future live verification report must resolve and record both profiles' image identities and
-compare them dynamically; historical digest equality is not assumed to remain true.
+[`env/pinned.env`](env/pinned.env) is the required reproducible default and uses immutable
+tag-plus-digest references. [`env/0.5.0.env`](env/0.5.0.env) is the maintained semantic-version
+profile. Every `verify` run records the locally executed image digests, freshly resolves the
+remote `0.5.0` digests, and classifies them as `SAME_BUILD` or `DIFFERENT_BUILD`. Historical
+digest equality is never assumed.
 
 > The demo is maintained against Java repository and registry version 0.5.0 and the recorded
 > immutable image digest. Version 0.4.0 is retained as an optional legacy compatibility target
 > and is not part of the maintained compatibility guarantee.
 
-[`env/0.4.0.env`](env/0.4.0.env) is informational and requires the explicit `--legacy` CLI flag.
-Its eventual live outcome will use exactly `LEGACY_COMPATIBILITY_PASSED`,
-`LEGACY_COMPATIBILITY_FAILED`, or `LEGACY_COMPATIBILITY_NOT_RUN`. A 0.4.0 failure is not a
-current Python SDK defect, contract mismatch, release blocker, or reason to add a compatibility
-shim.
+[`env/0.4.0.env`](env/0.4.0.env) requires `--legacy`. Its live scenarios are reported as
+`LEGACY_040`, and its aggregate outcome is exactly `LEGACY_COMPATIBILITY_PASSED` or
+`LEGACY_COMPATIBILITY_FAILED`; otherwise reports use `LEGACY_COMPATIBILITY_NOT_RUN`. A legacy
+failure is informational: it is not a current Python SDK defect, current contract mismatch,
+release blocker, or reason to add compatibility shims.
 
-## Prerequisites and installation
+Passing these scenarios is interoperability evidence for the covered contracts, not a claim of
+100% compatibility.
+
+## Prerequisites and isolated installation
 
 - Python 3.11 or newer.
-- A built `dpp-sdk` 0.2.1 wheel.
-- Docker with Compose v2 only for pulling or running the Java images.
-- Access to the public GHCR image references in the selected profile.
+- Docker Engine with Compose v2 for live modes.
+- Docker Buildx for the fresh remote digest lookup performed by `verify`.
+- Access to the public GHCR image references.
 
-Build the root SDK first:
-
-```powershell
-# From the Python SDK repository root
-python -m build
-Set-Location .\examples\java-services-demo
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install ..\..\dist\dpp_sdk-0.2.1-py3-none-any.whl ".[dev]"
-```
-
-```bash
-# From the Python SDK repository root
-python -m build
-cd examples/java-services-demo
-python -m venv .venv
-./.venv/bin/python -m pip install ../../dist/dpp_sdk-0.2.1-py3-none-any.whl ".[dev]"
-```
-
-The nested project depends on `dpp-sdk==0.2.1` as an installed package. It never adds the root
-`src` directory to its import path and is not separately published.
-
-## SDK-only demonstration
-
-The SDK mode requires no Docker:
-
-```powershell
-.\.venv\Scripts\python.exe -m dpp_java_services_demo sdk
-.\.venv\Scripts\python.exe -m dpp_java_services_demo sdk --json
-```
-
-```bash
-./.venv/bin/python -m dpp_java_services_demo sdk
-./.venv/bin/python -m dpp_java_services_demo sdk --json
-```
-
-It runs SDK-01 through SDK-15: complete and minimal typed fixtures, identifiers, core and
-Dpp4Fun semantic validation, flat/nested codec behavior, semantic round trips, immutable
-updates, public errors, whitespace, numeric, null/root, aggregate, Bill of Materials, and client
-resource-ownership contracts. Expected negative cases are successful demonstrations rather than
-uncontrolled tracebacks.
-
-## Pull, start, and stop the disposable Java services
-
-Compose contains only `dpp-repo-api` on host port 8080 and `dpp-registry-api` on host port 8081.
-The images' application defaults select memory mode. The file defines no persistence service or
-volume. Use a unique project name so repeated runs cannot attach to stale demo containers.
+Build both projects from the Python repository root, then install their wheels into a clean
+environment. This deliberately avoids an editable install or a root `src` path.
 
 PowerShell:
 
 ```powershell
-$project = "dpp-py-demo-$([guid]::NewGuid().ToString('N'))"
-$env:DPP_DEMO_PROJECT = $project
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env pull
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env up -d --wait --wait-timeout 120
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env ps --all
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env down --remove-orphans
+python -m build
+python -m build .\examples\java-services-demo `
+  --outdir .\examples\java-services-demo\dist
+python -m venv .\.java-services-demo-venv
+.\.java-services-demo-venv\Scripts\python.exe -m pip install `
+  .\dist\dpp_sdk-0.2.1-py3-none-any.whl `
+  .\examples\java-services-demo\dist\dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
 ```
 
 Linux/macOS:
 
 ```bash
-project="dpp-py-demo-$(python -c 'import uuid; print(uuid.uuid4().hex)')"
-export DPP_DEMO_PROJECT="$project"
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env pull
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env up -d --wait --wait-timeout 120
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env ps --all
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env down --remove-orphans
+python -m build
+python -m build ./examples/java-services-demo \
+  --outdir ./examples/java-services-demo/dist
+python -m venv ./.java-services-demo-venv
+./.java-services-demo-venv/bin/python -m pip install \
+  ./dist/dpp_sdk-0.2.1-py3-none-any.whl \
+  ./examples/java-services-demo/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
 ```
 
-Replace `pinned.env` with `0.5.0.env` for the required maintained-release profile. Container
-health is only a startup dependency; the future runner will also poll both public clients'
-functional health checks before interoperability scenarios.
+The nested distribution depends on `dpp-sdk==0.2.1`, contains only
+`dpp_java_services_demo`, and is not published. The root SDK wheel and source distribution
+exclude this entire example.
 
-If startup or verification fails, capture evidence before cleanup:
+## Runner modes
 
-```powershell
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env ps --all
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env logs --no-color --timestamps
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env images --format json
-docker compose -p $env:DPP_DEMO_PROJECT --env-file .\env\pinned.env down --remove-orphans
-```
-
-```bash
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env ps --all
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env logs --no-color --timestamps
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env images --format json
-docker compose -p "$DPP_DEMO_PROJECT" --env-file ./env/pinned.env down --remove-orphans
-```
-
-## Runner modes in this foundation
-
-| Mode | Current behavior | Exit status |
+| Mode | Executed evidence | Docker required |
 |---|---|---|
-| `sdk` | Runs and asserts SDK-01 through SDK-15 | Zero when all pass |
-| `services` | Reports live Java interoperability as next-phase `NOT_IMPLEMENTED` | Nonzero |
-| `all` | Runs SDK scenarios, then reports the live phase limitation | Nonzero |
-| `verify` | Runs assertion-based SDK-only partial verification and reports the live limitation | Nonzero |
+| `sdk` | SDK-01 through SDK-15 | No |
+| `services` | REP-01 through REP-15 and REG-01 through REG-07 | Running services |
+| `all` | SDK scenarios followed by repository and registry scenarios | Running services |
+| `verify` | SDK, controlled REP-16–18/REG-08, live, installed-import, and image identity evidence | Running services |
 
-The normal future release command remains:
+Expected negative cases are passed demonstrations when the exact contracted error occurs.
+`FAILED`, `SKIPPED`, and `NOT_IMPLEMENTED` are required verification failures. A maintained
+`verify` returns nonzero for any such result. Only the explicitly selected legacy profile makes
+scenario failures informational at process-exit level.
 
-```powershell
-.\.venv\Scripts\python.exe -m dpp_java_services_demo verify
-```
-
-The optional legacy form is explicit and remains non-blocking:
-
-```powershell
-.\.venv\Scripts\python.exe -m dpp_java_services_demo verify --env-file env\0.4.0.env --legacy
-```
-
-Both commands exit nonzero in this foundation because live interoperability is not yet
-implemented. No current output should be interpreted as repository or registry interoperability
-success.
-
-## Test and packaging boundaries
-
-Run demo unit tests independently:
+SDK-only use:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+.\.java-services-demo-venv\Scripts\python.exe -m dpp_java_services_demo sdk
 ```
 
 ```bash
-./.venv/bin/python -m pytest
+./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk
 ```
 
-Ordinary root `pytest` does not discover this nested test project and does not require Docker.
-The root wheel and source distribution intentionally exclude `examples/java-services-demo`.
-Future Docker-dependent tests will be separately marked and will fail, not silently skip, when
-an explicit integration flag is supplied but the services are unavailable.
+## Pull, start, verify, capture, and stop
+
+Compose contains only the Java repository API and registry API in their image-default memory
+mode. It declares no database, persistent volume, credentials, or internal API. Use a unique
+project name for every run.
+
+PowerShell, from `examples/java-services-demo`:
+
+```powershell
+$project = "dpp-py-demo-$([guid]::NewGuid().ToString('N'))"
+$envFile = (Resolve-Path .\env\pinned.env).Path
+$report = (Join-Path (Get-Location) "verification-report.json")
+$demoPython = (Resolve-Path ..\..\.java-services-demo-venv\Scripts\python.exe).Path
+
+docker compose -p $project --env-file $envFile pull
+docker compose -p $project --env-file $envFile up -d --wait --wait-timeout 120
+docker compose -p $project --env-file $envFile ps --all
+
+Push-Location ([System.IO.Path]::GetTempPath())
+try {
+  & $demoPython -I -m dpp_java_services_demo verify `
+    --env-file $envFile --report-file $report
+} finally {
+  Pop-Location
+}
+```
+
+Running the resolved interpreter from a temporary directory with `-I` proves the root checkout
+is not supplying `dpp_sdk`.
+
+Linux/macOS, from `examples/java-services-demo`:
+
+```bash
+project="dpp-py-demo-$(python -c 'import uuid; print(uuid.uuid4().hex)')"
+env_file="$(pwd)/env/pinned.env"
+report="$(pwd)/verification-report.json"
+demo_python="$(cd ../.. && pwd)/.java-services-demo-venv/bin/python"
+
+docker compose -p "$project" --env-file "$env_file" pull
+docker compose -p "$project" --env-file "$env_file" up -d --wait --wait-timeout 120
+docker compose -p "$project" --env-file "$env_file" ps --all
+
+outside="$(mktemp -d)"
+(cd "$outside" && "$demo_python" -I \
+  -m dpp_java_services_demo verify --env-file "$env_file" --report-file "$report")
+rmdir "$outside"
+```
+
+On failure, preserve service state and logs before teardown:
+
+```powershell
+docker compose -p $project --env-file $envFile ps --all
+docker compose -p $project --env-file $envFile logs --no-color --timestamps
+docker compose -p $project --env-file $envFile images --format json
+docker compose -p $project --env-file $envFile down --remove-orphans
+docker ps -a --filter "label=com.docker.compose.project=$project"
+docker volume ls --filter "label=com.docker.compose.project=$project"
+```
+
+```bash
+docker compose -p "$project" --env-file "$env_file" ps --all
+docker compose -p "$project" --env-file "$env_file" logs --no-color --timestamps
+docker compose -p "$project" --env-file "$env_file" images --format json
+docker compose -p "$project" --env-file "$env_file" down --remove-orphans
+docker ps -a --filter "label=com.docker.compose.project=$project"
+docker volume ls --filter "label=com.docker.compose.project=$project"
+```
+
+Compose image health starts the dependency chain, while the runner independently polls both
+public `/health` operations up to `DPP_STARTUP_TIMEOUT_SECONDS`. A supplied integration flag or
+live CLI mode fails when functional readiness is unavailable; it never silently passes.
+
+If ports 8080/8081 are occupied, override ports and public URLs together before Compose and CLI
+execution:
+
+```powershell
+$env:DPP_REPO_PORT = "18080"
+$env:DPP_REGISTRY_PORT = "18081"
+$env:DPP_REPO_BASE_URL = "http://localhost:18080"
+$env:DPP_REGISTRY_BASE_URL = "http://localhost:18081"
+```
+
+## Maintained, semantic-tag, and legacy runs
+
+The release gates are:
+
+1. Full `verify` against `pinned.env`.
+2. Full `verify` against `0.5.0.env`.
+3. Dynamic identity comparison between the executed images and fresh `0.5.0` resolution.
+
+When the pinned and `0.5.0` digests are `SAME_BUILD`, one complete scenario execution plus the
+recorded equality is sufficient to avoid a duplicate run. If they are `DIFFERENT_BUILD`, run the
+complete suite separately with `env/0.5.0.env`.
+
+Optional legacy command:
+
+```powershell
+python -m dpp_java_services_demo verify --env-file env\0.4.0.env --legacy `
+  --report-file legacy-verification-report.json
+```
+
+```bash
+python -m dpp_java_services_demo verify --env-file env/0.4.0.env --legacy \
+  --report-file legacy-verification-report.json
+```
+
+Version 0.4.0 is never part of the required pull-request or release gate.
+
+## Test boundary and retained reports
+
+Ordinary root `pytest` does not collect this nested project or require Docker. From the nested
+directory:
+
+```powershell
+python -m pytest
+python -m pytest --run-java-services
+```
+
+The first command precisely skips the two marked live tests. The second requires already-running
+services and converts readiness or scenario failures into test failures.
+
+The JSON report records scenario fields and totals, Python repository/demo commit, contract
+baseline, exact configured image references, local runtime digests, fresh maintained digests,
+image equivalence, SDK version/location, timestamps, cleanup warnings, legacy status, and one
+exact interoperability verdict. The only full maintained success verdict is
+`PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED`.
 
 ## Limitations
 
-- Live repository and registry scenarios, readiness polling, cleanup orchestration, image digest
-  recording/comparison, and release reports are next-phase work.
-- Only disposable local Java containers are supported. Shared long-lived endpoints are out of
+- Only disposable local Java containers are supported; shared or long-lived endpoints are out of
   scope.
-- Native arm64 images are not a current completion requirement.
-- The demo does not provide persistence, PostgreSQL, EDC, dataspace, or backend functionality.
-- Passing demo coverage is evidence for the scenarios executed; it is not a claim of 100%
-  compatibility.
+- The registry has no public read-back or cleanup API. REG-03 therefore uses successful
+  registration plus the missing-DPP rejection as public repository-verification evidence.
+- Malformed transports and other unsafe-to-induce behaviors remain controlled Python transport
+  tests; the runner does not force the images to emit unnatural responses.
+- The unversioned product-history route is controlled legacy evidence only.
+- Native arm64 image support is not a completion requirement.
+- Persistence, PostgreSQL, EDC, dataspace, backend, and internal Java routes are excluded.
