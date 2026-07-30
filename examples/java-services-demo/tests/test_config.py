@@ -64,6 +64,20 @@ def test_environment_overrides_file_without_mutating_it(
     assert "127.0.0.1" not in env_file.read_text(encoding="utf-8")
 
 
+def test_installed_command_finds_profiles_in_the_demo_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env_directory = tmp_path / "env"
+    env_directory.mkdir()
+    _write_env(env_directory / "pinned.env")
+    (tmp_path / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    config = load_config()
+
+    assert config.env_file == (env_directory / "pinned.env").resolve()
+
+
 def test_legacy_profile_requires_explicit_flag(tmp_path: Path) -> None:
     env_file = tmp_path / "0.4.0.env"
     _write_env(env_file, repo_image="ghcr.io/cir4fun-eu/dpp-repo-api:0.4.0")

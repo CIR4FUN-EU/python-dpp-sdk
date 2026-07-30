@@ -30,6 +30,11 @@ class DemoConfig:
 
 
 def _project_root() -> Path:
+    working_directory = Path.cwd().resolve()
+    if (working_directory / "compose.yaml").is_file() and (
+        working_directory / "env" / "pinned.env"
+    ).is_file():
+        return working_directory
     return Path(__file__).resolve().parents[2]
 
 

@@ -262,3 +262,6 @@ Spring, Docker, and deployment diagrams are reference provenance, not current Py
 architecture.
 
 Release preparation is documented in [RELEASING.md](RELEASING.md).
+
+An isolated external-consumer demonstration of the public SDK, with disposable published Java
+service images, lives in [examples/java-services-demo](examples/java-services-demo/README.md).
