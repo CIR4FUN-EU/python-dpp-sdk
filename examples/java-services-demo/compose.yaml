@@ -1,0 +1,16 @@
+services:
+  dpp-repo-api:
+    image: ${DPP_REPO_IMAGE:?set DPP_REPO_IMAGE}
+    ports:
+      - "${DPP_REPO_PORT:-8080}:8080"
+
+  dpp-registry-api:
+    image: ${DPP_REGISTRY_IMAGE:?set DPP_REGISTRY_IMAGE}
+    depends_on:
+      dpp-repo-api:
+        condition: service_healthy
+    environment:
+      DEMO_REPO_PUBLIC_BASE_URL: ${DPP_REPO_BASE_URL:-http://localhost:8080}
+      DEMO_REPO_VERIFICATION_BASE_URL: http://dpp-repo-api:8080
+    ports:
+      - "${DPP_REGISTRY_PORT:-8081}:8081"
