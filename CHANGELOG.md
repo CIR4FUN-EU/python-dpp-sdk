@@ -26,10 +26,16 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 - History reads now normalize timezone-aware datetimes to the Java-compatible canonical UTC
   `Z` query wire, including Java-compatible fractional-second precision.
 - Repository identifiers and element paths now use exact dynamic-segment percent encoding,
-  including encoded `*`, `~`, `%`, `?`, and `#`.
+  preserving literal `*` while encoding `~`, `%`, `?`, and `#`.
 - Repository and registry clients now reject null response payloads, null codec results, and
   invalid registry requests through causal `DppMappingClientError` failures before invalid
   values or raw implementation exceptions can escape.
+- Contracted text fields use an explicit frozen Unicode White_Space table in construction,
+  semantic validation, duplicate comparison, and cross-object comparison.
+- Contracted floating-point values are finite and non-negative; strict JSON mapping rejects
+  non-finite input, overflow, and output with preserved causes.
+- Standalone codec roots and null string-list members follow the approved structural mapping
+  boundary, while direct defensive validators retain indexed semantic errors.
 
 ### Changed
 - Active model guidance and contract tests consistently use `with_updates()` as the
@@ -46,12 +52,20 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   distinct client error categories.
 - Both SDK clients support explicit `close()` and context-manager cleanup for SDK-owned HTTPX
   resources; caller-supplied clients remain caller-owned.
+- Aggregate validators document and test their supported public boundary and fail-fast order;
+  arbitrary `model_construct()` corruption is not a public compatibility contract.
 
 ### Compatibility
 - `UpdateDataElementRequest` remains importable only as a compatibility DTO; it does not affect
   canonical direct data-element PATCH bodies.
 - Legacy registry aliases and the unversioned product-ID history route are retained compatibility
   surfaces only. New integrations should use canonical field names and versioned routes.
+
+## [0.2.1] — Current package baseline
+
+- Package metadata and `dpp_sdk.__version__` identify this checkout as `0.2.1`.
+- This repository checkout contains no local release tag for `0.2.1`; commit history remains
+  the provenance source for changes predating the current unreleased section.
 
 ## [0.1.1]
 

@@ -98,6 +98,26 @@ def test_dpp4fun_empty_collections_are_immutable_defaults() -> None:
 
 
 @pytest.mark.parametrize(
+    "invalid",
+    [-1.0, float("nan"), float("inf"), float("-inf")],
+    ids=["negative", "nan", "positive-infinity", "negative-infinity"],
+)
+def test_dec_003_contracted_numbers_are_finite_and_non_negative(invalid: float) -> None:
+    with pytest.raises(ValidationError):
+        Characteristics(productName="Chair", weight=invalid)
+    with pytest.raises(ValidationError):
+        Dimensions(width=invalid, height=1.0, depth=1.0, unit="cm")
+    with pytest.raises(ValidationError):
+        Material(name="Steel", portion=invalid)
+
+
+def test_dec_003_zero_positive_and_finite_exponent_values_are_accepted() -> None:
+    assert Characteristics(productName="Chair", weight=0.0).weight == 0.0
+    assert Dimensions(width=1.25e2, height=1.0, depth=1.0, unit="cm").width == 125.0
+    assert Material(name="Steel", portion=1.25e-2).portion == 0.0125
+
+
+@pytest.mark.parametrize(
     ("contract_id", "attribute", "replacement"),
     [
         ("MODEL-DPP4FUN-BILL-OF-MATERIALS-IMMUTABLE-UPDATE", "billOfMaterials", BillOfMaterials()),

@@ -27,7 +27,7 @@ from ..core.model import (
 )
 
 # A non-negative float, used for dimensions, weight, and material portion.
-NonNegativeFloat = Annotated[float, Field(ge=0)]
+NonNegativeFloat = Annotated[float, Field(ge=0, allow_inf_nan=False)]
 
 
 class Dimensions(_Base):

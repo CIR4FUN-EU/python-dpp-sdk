@@ -23,6 +23,10 @@ from .validation import validate_dpp4fun
 _CORE_FIELDS = ("passportMetadata", "nameplate", "documentation")
 
 
+def _reject_non_finite_constant(token: str) -> Any:
+    raise ValueError(f"non-finite JSON number is not allowed: {token}")
+
+
 def _move_if_present(source: dict[str, Any], target: dict[str, Any], field: str) -> None:
     """Move ``field`` from ``source`` to ``target`` if present (incl. a null value)."""
     if field in source:
@@ -59,9 +63,12 @@ def _normalize_transport(root: dict[str, Any]) -> None:
 
 def to_json(dpp: Dpp4Fun) -> str:
     """Serialize a :class:`Dpp4Fun` to its flat transport JSON string."""
-    data = dpp.model_dump(mode="json")
-    _flatten_core(data)
-    return json.dumps(data)
+    try:
+        data = dpp.model_dump(mode="json")
+        _flatten_core(data)
+        return json.dumps(data, allow_nan=False)
+    except ValueError as exc:
+        raise DppMappingError(f"Failed to serialize DPP to JSON: {exc}") from exc
 
 
 def from_json(raw: str) -> Dpp4Fun:
@@ -70,8 +77,8 @@ def from_json(raw: str) -> Dpp4Fun:
     Does not apply semantic validation (mirrors the lenient ``fromJson``).
     """
     try:
-        tree = json.loads(raw)
-    except json.JSONDecodeError as exc:
+        tree = json.loads(raw, parse_constant=_reject_non_finite_constant)
+    except (json.JSONDecodeError, ValueError) as exc:
         raise DppMappingError(f"Failed to deserialize DPP JSON: {exc}") from exc
     if isinstance(tree, dict):
         _normalize_transport(tree)

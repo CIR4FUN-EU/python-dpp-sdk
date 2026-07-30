@@ -305,7 +305,7 @@ def test_history_timestamp_wire_is_canonical_utc_z(
 @pytest.mark.parametrize(
     ("value", "encoded"),
     [
-        pytest.param("*", b"%2A", id="star"),
+        pytest.param("*", b"*", id="star"),
         pytest.param("~", b"%7E", id="tilde"),
         pytest.param("a b", b"a%20b", id="space"),
         pytest.param("/", b"%2F", id="slash"),

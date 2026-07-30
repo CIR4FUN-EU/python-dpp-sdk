@@ -35,6 +35,17 @@ def test_models_are_frozen(valid_core: DppCore) -> None:
         valid_core.nameplate.gtinCode = "changed"  # type: ignore[misc]
 
 
+@pytest.mark.parametrize("whitespace", [" ", "\t", "\n", "\u00a0", "\u202f", "\u2003"])
+def test_dec_002_frozen_unicode_whitespace_is_blank(whitespace: str) -> None:
+    with pytest.raises(ValidationError, match="must not be blank"):
+        Address(country=whitespace, town="Town")
+
+
+@pytest.mark.parametrize("visible", ["\u200b", "\u001c", "\u00a0visible\u2003"])
+def test_dec_002_non_table_or_mixed_text_is_visible(visible: str) -> None:
+    assert Address(country=visible, town="Town").country == visible
+
+
 def test_with_updates_for_validated_edits(valid_core: DppCore) -> None:
     updated = valid_core.nameplate.with_updates(batchNumber="B-9")
     assert updated.batchNumber == "B-9"

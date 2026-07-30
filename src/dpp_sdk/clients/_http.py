@@ -62,7 +62,7 @@ def resolve(base_url: str, path_and_query: str) -> str:
 
 
 def encode_segment(value: str) -> str:
-    return quote(value, safe="").replace("~", "%7E")
+    return quote(value, safe="*").replace("~", "%7E")
 
 
 def probe_health(client: httpx.Client, base_url: str) -> bool:

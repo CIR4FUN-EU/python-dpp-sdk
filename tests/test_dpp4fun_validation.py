@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
@@ -164,6 +165,43 @@ def test_tags_reject_duplicates() -> None:
         validate_product_classification(classification)
 
 
+def test_dec_002_duplicate_normalization_uses_only_frozen_whitespace_table() -> None:
+    with pytest.raises(DppValidationError, match="duplicate"):
+        validate_product_classification(
+            ProductClassification(
+                sector="F",
+                category="Chair",
+                tags=("Chair", "\u00a0chair\u2003"),
+            )
+        )
+
+    validate_product_classification(
+        ProductClassification(
+            sector="F",
+            category="Chair",
+            tags=("Chair", "\u001cchair"),
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [float("nan"), float("inf"), float("-inf")],
+    ids=["nan", "positive-infinity", "negative-infinity"],
+)
+def test_dec_003_semantic_numeric_checks_reject_non_finite_bypass(invalid: float) -> None:
+    with pytest.raises(DppValidationError, match="Characteristics.weight"):
+        validate_characteristics(
+            Characteristics.model_construct(productName="Chair", weight=invalid)
+        )
+    with pytest.raises(DppValidationError, match="Dimensions.width"):
+        validate_dimensions(
+            Dimensions.model_construct(width=invalid, height=1.0, depth=1.0, unit="cm")
+        )
+    with pytest.raises(DppValidationError, match="Material.portion"):
+        validate_material(Material.model_construct(name="Steel", portion=invalid))
+
+
 def test_features_reject_blank() -> None:
     characteristics = Characteristics(productName="X", features=("ok", "  "))
     with pytest.raises(DppValidationError, match="features"):
@@ -195,6 +233,36 @@ def test_cross_rule_external_link_requires_documentation(valid_dpp4fun: Dpp4Fun)
     bad = valid_dpp4fun.model_copy(update={"coreDpp": core_no_doc})
     with pytest.raises(DppValidationError, match="externalDocumentationLink"):
         validate_dpp4fun(bad)
+
+
+def test_dec_005_supported_aggregate_validation_order(valid_dpp4fun: Dpp4Fun) -> None:
+    invalid_metadata = valid_dpp4fun.passportMetadata.model_copy(
+        update={"passportUpdateDates": (date.today() + timedelta(days=1),)}
+    )
+    invalid_core = valid_dpp4fun.coreDpp.model_copy(update={"passportMetadata": invalid_metadata})
+    invalid_classification = valid_dpp4fun.classification.model_copy(
+        update={"tags": ("Chair", "chair")}
+    )
+    invalid_characteristics = valid_dpp4fun.characteristics.model_copy(update={"weight": -1.0})
+
+    core_first = valid_dpp4fun.model_copy(
+        update={
+            "coreDpp": invalid_core,
+            "classification": invalid_classification,
+            "characteristics": invalid_characteristics,
+        }
+    )
+    with pytest.raises(DppValidationError, match=r"passportUpdateDates\[0\]"):
+        validate_dpp4fun(core_first)
+
+    classification_first = valid_dpp4fun.model_copy(
+        update={
+            "classification": invalid_classification,
+            "characteristics": invalid_characteristics,
+        }
+    )
+    with pytest.raises(DppValidationError, match="duplicate entry"):
+        validate_dpp4fun(classification_first)
 
 
 @pytest.mark.parametrize(

@@ -20,15 +20,17 @@ from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
+from ._text import is_blank
+
 
 def _require_non_blank(value: str) -> str:
-    if not value.strip():
+    if is_blank(value):
         raise ValueError("must not be blank")
     return value
 
 
 def _reject_blank_if_present(value: str | None) -> str | None:
-    if value is not None and not value.strip():
+    if value is not None and is_blank(value):
         raise ValueError("must not be blank if provided")
     return value
 

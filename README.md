@@ -2,13 +2,15 @@
 
 Python SDK for **Digital Product Passports (DPP)**, built on [Pydantic v2](https://docs.pydantic.dev).
 
-It provides typed models, validation, and JSON transport for digital product passports,
-plus HTTP clients for the two DPP backend APIs:
+It provides typed models, explicit validation, DPP4Fun JSON transport, and synchronous
+HTTP clients for two reusable DPP backend roles:
 
-- the **DPP registry** — hosted by the European Commission, and
+- a **DPP registry** that stores registration metadata, and
 - the **DPP repository** — hosted by economic operators or service providers.
 
-Both APIs conform to the draft standardisation documents published by **CEN/CENELEC**.
+The implemented surface is aligned with the selected reusable Java SDK contracts and
+selected draft API shapes. This package does not operate a registry or repository and
+does not claim standards compliance, certification, or European Commission hosting.
 
 ## Install
 
@@ -25,14 +27,16 @@ Requires Python 3.11+.
 ```python
 from dpp_sdk import from_json, to_json, validate_dpp4fun
 
-# Parse an incoming passport (accepts both flat and nested JSON shapes)
-dpp = from_json(raw_json)
 
-# Validate against the DPP rule set (raises on violations)
-validate_dpp4fun(dpp)
+def parse_validate_and_serialize(raw_json: str) -> str:
+    # Parse an incoming passport (accepts both flat and nested JSON objects).
+    dpp = from_json(raw_json)
 
-# Serialize back to the flattened wire JSON
-payload = to_json(dpp)
+    # Validate the semantic DPP rule set (raises on the first violation).
+    validate_dpp4fun(dpp)
+
+    # Serialize back to flattened, interoperable JSON.
+    return to_json(dpp)
 ```
 
 ### Full lifecycle
@@ -179,6 +183,22 @@ validate_dpp4fun(updated)
 assert dpp.characteristics.productName == "ErgoChair Pro"  # original is unchanged
 ```
 
+`model_construct()` and unchecked `model_copy(update=...)` are test-only bypass tools. Public
+validators guarantee deterministic fail-fast behavior for normally constructed, codec-created,
+or revalidating-update objects; they do not promise recovery from arbitrary internal corruption.
+
+The cross-language text contract uses a frozen Unicode White_Space table:
+`U+0009–U+000D`, `U+0020`, `U+0085`, `U+00A0`, `U+1680`, `U+2000–U+200A`,
+`U+2028`, `U+2029`, `U+202F`, `U+205F`, and `U+3000`. `U+200B` is visible text.
+Accepted strings retain their original code points; validation does not trim stored values.
+
+`weight`, all three dimensions, and material `portion` must be finite and non-negative.
+The codec rejects `NaN`, positive or negative infinity, and exponent overflow, and never emits
+non-standard JSON numeric tokens. A standalone JSON root `null`, missing root, or empty object
+is a causal mapping failure rather than a successful nullable result. A JSON `null` inside
+`features` or `tags` fails structural mapping; direct defensive list validation reports an
+indexed semantic validation failure.
+
 ## HTTP clients
 
 The `httpx`-based clients for the registry and repository APIs live in `dpp_sdk.clients`.
@@ -215,6 +235,10 @@ including `None` as JSON `null`; it does not wrap the value in a payload object.
 `UpdateDataElementRequest` DTO remains importable only for compatibility and cannot change that
 canonical direct-body contract.
 
+Dynamic path segments follow the selected Java wire behavior: `*` remains literal, `~` is
+`%7E`, spaces are `%20`, and slash, plus, percent, query, fragment, and non-ASCII characters are
+UTF-8 percent-encoded. Version timestamps are normalized to UTC and emitted with a trailing `Z`.
+
 Client failures remain categorized: `DppValidationClientError` for local validation,
 `DppMappingClientError` for encoding/mapping, `DppNetworkClientError` for timeout or transport,
 `DppHttpClientError` for non-2xx responses, and `DppApiClientError` for failed API envelopes.
@@ -228,6 +252,13 @@ own HTTPX resource on `close()` or context exit; an injected `httpx.Client` rema
 
 | Package | Purpose |
 |---|---|
-| `dpp_sdk.core` | Core DPP model, validation, and JSON transport |
-| `dpp_sdk.dpp4fun` | Furniture-specific DPP aggregate |
+| `dpp_sdk.core` | Reusable core models, identifiers, errors, and semantic validation |
+| `dpp_sdk.dpp4fun` | Furniture-specific aggregate, semantic validation, and flat/nested JSON codec |
 | `dpp_sdk.clients` | HTTP clients for the DPP registry & repository APIs |
+
+Dependency direction is `dpp_sdk.clients` and `dpp_sdk.dpp4fun` toward reusable
+`dpp_sdk.core`; core never imports either consumer. Java persistence, demo, mock-service,
+Spring, Docker, and deployment diagrams are reference provenance, not current Python package
+architecture.
+
+Release preparation is documented in [RELEASING.md](RELEASING.md).
