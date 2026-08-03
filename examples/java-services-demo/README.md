@@ -3,7 +3,8 @@
 This is an isolated, unpublished consumer of the public `dpp-sdk` package. It demonstrates the
 SDK locally and exercises its public clients against disposable, published Java DPP repository
 and registry images. It adds no backend, persistence, Docker, demo-service, EDC, or dataspace
-responsibility to `dpp_sdk`.
+responsibility to `dpp_sdk`. Compose starts the Java-compatible PostgreSQL containers required
+by the pulled Java API images; it does not add a Python persistence implementation.
 
 The CLI never pulls, starts, stops, or removes containers. The operator or CI workflow owns the
 entire Compose lifecycle.
@@ -102,14 +103,18 @@ is reported as a mode-specific configuration error.
 
 ## Pull, start, verify, capture, and stop
 
-Compose contains only the Java repository API and registry API in their image-default memory
-mode. It declares no database, persistent volume, credentials, or internal API. Use a unique
-project name for every run.
+Compose mirrors the Java demo topology: public pulled repository and registry API images, plus
+disposable `postgres:16` containers for each API. The public image references always come from
+the selected `env/*.env` profile. The database names, users, and passwords are Java demo-local
+defaults only; do not use this stack with production credentials or shared endpoints.
+
+The Java-compatible Compose file uses fixed container names. Before starting it, verify that no
+other Java-style demo stack is running, and always reset it with `down --volumes`.
 
 PowerShell, from `examples/java-services-demo`:
 
 ```powershell
-$project = "dpp-py-demo-$([guid]::NewGuid().ToString('N'))"
+$project = "dpp-java-services-demo"
 $envFile = (Resolve-Path .\env\pinned.env).Path
 $report = (Join-Path (Get-Location) "verification-report.json")
 $demoPython = (Resolve-Path ..\..\.java-services-demo-venv\Scripts\python.exe).Path
@@ -135,7 +140,7 @@ is not supplying `dpp_sdk`.
 Linux/macOS, from `examples/java-services-demo`:
 
 ```bash
-project="dpp-py-demo-$(python -c 'import uuid; print(uuid.uuid4().hex)')"
+project="dpp-java-services-demo"
 env_file="$(pwd)/env/pinned.env"
 report="$(pwd)/verification-report.json"
 demo_python="$(cd ../.. && pwd)/.java-services-demo-venv/bin/python"
@@ -158,7 +163,7 @@ On failure, preserve service state and logs before teardown:
 docker compose -p $project --env-file $envFile ps --all
 docker compose -p $project --env-file $envFile logs --no-color --timestamps
 docker compose -p $project --env-file $envFile images --format json
-docker compose -p $project --env-file $envFile down --remove-orphans
+docker compose -p $project --env-file $envFile down --volumes --remove-orphans
 docker ps -a --filter "label=com.docker.compose.project=$project"
 docker volume ls --filter "label=com.docker.compose.project=$project"
 ```
@@ -167,7 +172,7 @@ docker volume ls --filter "label=com.docker.compose.project=$project"
 docker compose -p "$project" --env-file "$env_file" ps --all
 docker compose -p "$project" --env-file "$env_file" logs --no-color --timestamps
 docker compose -p "$project" --env-file "$env_file" images --format json
-docker compose -p "$project" --env-file "$env_file" down --remove-orphans
+docker compose -p "$project" --env-file "$env_file" down --volumes --remove-orphans
 docker ps -a --filter "label=com.docker.compose.project=$project"
 docker volume ls --filter "label=com.docker.compose.project=$project"
 ```
@@ -182,6 +187,8 @@ execution:
 ```powershell
 $env:DPP_REPO_PORT = "18080"
 $env:DPP_REGISTRY_PORT = "18081"
+$env:MOCK_REPO_PORT = "18080"
+$env:MOCK_REGISTRY_PORT = "18081"
 $env:DPP_REPO_BASE_URL = "http://localhost:18080"
 $env:DPP_REGISTRY_BASE_URL = "http://localhost:18081"
 ```
@@ -189,6 +196,8 @@ $env:DPP_REGISTRY_BASE_URL = "http://localhost:18081"
 ```bash
 export DPP_REPO_PORT=18080
 export DPP_REGISTRY_PORT=18081
+export MOCK_REPO_PORT=18080
+export MOCK_REGISTRY_PORT=18081
 export DPP_REPO_BASE_URL=http://localhost:18080
 export DPP_REGISTRY_BASE_URL=http://localhost:18081
 ```
@@ -252,4 +261,5 @@ interoperability verdict. The only full maintained success verdict is
   tests; the runner does not force the images to emit unnatural responses.
 - The unversioned product-history route is controlled legacy evidence only.
 - Native arm64 image support is not a completion requirement.
-- Persistence, PostgreSQL, EDC, dataspace, backend, and internal Java routes are excluded.
+- PostgreSQL is a disposable Java-image runtime dependency only; no Python persistence package,
+  backend, EDC, dataspace, or internal Java route is added to `dpp_sdk`.
