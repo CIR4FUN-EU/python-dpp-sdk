@@ -1,10 +1,10 @@
 # Python SDK Java-services demo
 
-This is an isolated, unpublished consumer of the public `dpp-sdk` package. It demonstrates the
-SDK locally and exercises its public clients against disposable, published Java DPP repository
-and registry images. It adds no backend, persistence, Docker, demo-service, EDC, or dataspace
-responsibility to `dpp_sdk`. Compose starts the Java-compatible PostgreSQL containers required
-by the pulled Java API images; it does not add a Python persistence implementation.
+This is an isolated, unpublished consumer of the public `dpp-sdk` package. Use it when you want to
+see the Python clients talk to disposable Java DPP repository and registry services. It adds no
+backend, persistence, Docker, demo-service, EDC, or dataspace responsibility to `dpp_sdk`.
+Compose starts the Java-compatible PostgreSQL containers required by the pulled Java API images; it
+does not add a Python persistence implementation.
 
 The CLI never pulls, starts, stops, or removes containers. The operator or CI workflow owns the
 entire Compose lifecycle.
@@ -39,10 +39,16 @@ Passing these scenarios is interoperability evidence for the covered contracts, 
 
 ## Prerequisites and isolated installation
 
-- Python 3.11 or newer.
-- Docker Engine with Compose v2 for live modes.
-- Docker Buildx for the fresh remote digest lookup performed by `verify`.
-- Access to the public GHCR image references.
+Choose the mode first:
+
+| If you want to… | You need… |
+| --- | --- |
+| run the SDK-only checks | Python 3.11 or newer |
+| start local Java services, then run `services` or `all` | Python plus Docker Engine with Compose v2 and access to the public GHCR images |
+| run the complete `verify` check | the above plus Docker Buildx for the fresh image-digest lookup |
+
+The root [README](../../README.md#prerequisites) lists the same split. Docker, Compose, Buildx,
+and GHCR access are not prerequisites for ordinary SDK use.
 
 Build both projects from the Python repository root, then install their wheels into a clean
 environment. This deliberately avoids an editable install or a root `src` path.
@@ -187,6 +193,18 @@ docker volume ls --filter "label=com.docker.compose.project=$project"
 Compose image health starts the dependency chain, while the runner independently polls both
 public `/health` operations up to `DPP_STARTUP_TIMEOUT_SECONDS`. A supplied integration flag or
 live CLI mode fails when functional readiness is unavailable; it never silently passes.
+
+### View the running Java demo services
+
+These browser links belong to the disposable Java demo services, not to the Python package:
+
+| Service | Browser API guide | Machine-readable health | OpenAPI JSON |
+| --- | --- | --- | --- |
+| Repository | `http://localhost:8080/` | `http://localhost:8080/health` | `http://localhost:8080/v3/api-docs` |
+| Registry | `http://localhost:8081/` | `http://localhost:8081/health` | `http://localhost:8081/v3/api-docs` |
+
+Opening either base URL redirects to that service's Swagger UI. If you use alternate ports, replace
+`8080` and `8081` in these links with the ports configured for your run.
 
 If ports 8080/8081 are occupied, override ports and public URLs together before Compose and CLI
 execution:

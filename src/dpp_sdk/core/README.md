@@ -2,27 +2,29 @@
 
 ## Purpose
 
-`dpp_sdk.core` provides the reusable, immutable DPP model layer: identity and metadata, nameplate,
-organizations and contacts, documentation, shared errors, and explicit semantic validation. It is
-the dependency base for `dpp_sdk.dpp4fun` and `dpp_sdk.clients`.
+`dpp_sdk.core` is the reusable part of the SDK. Use it when you need the common passport details:
+identity, nameplate information, organisations and contacts, documentation, and validation. The
+furniture-specific DPP4Fun module builds on these models. Generic clients can work with any model
+that an application knows how to convert and check.
 
 It does not provide a standalone JSON codec, furniture-specific models, HTTP clients, repository or
 registry services, persistence, or lifecycle-event storage.
 
 ## Architecture at a glance
 
-```text
-PassportMetadata + Nameplate + optional Documentation
-                         │
-                      DppCore
-                         │
-                       Dpp
-                         │
-      consumed by DPP4Fun aggregates and caller-supplied client codecs
+```mermaid
+flowchart TB
+    IDENTITY["Passport identity and nameplate"] --> CORE["DppCore"]
+    DETAILS["Organisation and contact details"] --> CORE
+    DOCS["Optional documentation"] --> CORE
+    CORE --> DPP["Dpp wrapper"]
 ```
 
-All public models are frozen Pydantic models. Construction applies structural checks; semantic
-checks remain explicit through `validate_dpp_core()`.
+*Diagram: DppCore brings together the reusable passport information. `Dpp` is the small outer
+wrapper around it.*
+
+All public models are frozen Pydantic models. Construction checks the shape of the data; call
+`validate_dpp_core()` when you want to check the business rules as well.
 
 ## Public surface
 

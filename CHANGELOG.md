@@ -50,8 +50,6 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   revalidating immutable-edit seam; intentional Pydantic bypass probes remain internal.
 - `README.md`: full lifecycle Quickstart (build → validate → store → register → read → update →
   delete) now uses application-provided endpoints and no-network examples.
-
-### Changed
 - Domain models expose `with_updates()` for revalidated immutable updates; contracted collections
   are immutable tuples in memory and continue to serialize as JSON arrays.
 - Validation documentation now describes the tested fail-fast behavior rather than aggregation.
@@ -62,6 +60,8 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   resources; caller-supplied clients remain caller-owned.
 - Aggregate validators document and test their supported public boundary and fail-fast order;
   arbitrary `model_construct()` corruption is not a public compatibility contract.
+- Root and module READMEs now use plain-language entry points, explain Python client payload models,
+  distinguish optional Java-demo prerequisites, and include focused Mermaid diagrams with captions.
 
 ### Compatibility
 - `UpdateDataElementRequest` remains importable only as a compatibility DTO; it does not affect

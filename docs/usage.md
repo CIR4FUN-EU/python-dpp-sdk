@@ -106,7 +106,7 @@ except DppValidationError as exc:
 ```
 
 The validators are fail-fast and do not mutate or repair the model. The
-The [core module guide](../src/dpp_sdk/core/README.md) and
+[core module guide](../src/dpp_sdk/core/README.md) and
 [DPP4Fun module guide](../src/dpp_sdk/dpp4fun/README.md) own the detailed rule descriptions.
 
 ## Serialization and deserialization

@@ -2,25 +2,28 @@
 
 ## Purpose
 
-`dpp_sdk.dpp4fun` supplies the furniture-specific `Dpp4Fun` aggregate, its component models,
-explicit semantic validation, and the aggregate JSON codec. It composes the reusable core models;
-it does not depend on concrete repository or registry clients.
+`dpp_sdk.dpp4fun` adds the furniture information to a reusable passport. Use it when your product
+is furniture and you want the ready-made `Dpp4Fun` model, its checks, and its JSON conversion. It
+uses the reusable core models and does not depend on repository or registry clients.
 
 It does not implement a generic DPP standard for every product sector, an HTTP service, persistence,
 or a standalone reusable-core JSON codec.
 
 ## Architecture at a glance
 
-```text
-Dpp4Fun
- ├── coreDpp: DppCore
- ├── classification: ProductClassification
- ├── characteristics: Characteristics
- └── optional billOfMaterials: BillOfMaterials
-
-Dpp4FunJsonCodec ↔ flattened or nested DPP4Fun JSON
-validate_dpp4fun() → core validation, furniture validation, cross-rules
+```mermaid
+flowchart TB
+    DPP["DPP4Fun furniture passport"]
+    CORE["Core passport"] --> DPP
+    CLASSIFICATION["Product category"] --> DPP
+    CHARACTERISTICS["Product characteristics"] --> DPP
+    BOM["Optional materials, components, and parts"] --> DPP
+    DPP --> CHECK["Check the passport"]
+    CHECK --> JSON["Convert to or from JSON"]
 ```
+
+*Diagram: a DPP4Fun passport combines a core passport with furniture details. Check it before use,
+then convert it to or from JSON when needed.*
 
 The models are frozen Pydantic models. Contracted collections are immutable tuples in memory and
 JSON arrays on the wire.
