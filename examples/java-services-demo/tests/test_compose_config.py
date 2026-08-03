@@ -27,28 +27,41 @@ def _profile_values(name: str) -> dict[str, str]:
     return values
 
 
-def test_compose_is_two_service_pull_only_memory_mode() -> None:
+def test_compose_matches_java_postgres_topology_with_public_api_images() -> None:
     text = (PROJECT_ROOT / "compose.yaml").read_text(encoding="utf-8")
 
+    assert text.count("\n  dpp-repo-db:") == 1
+    assert text.count("\n  dpp-registry-db:") == 1
     assert text.count("\n  dpp-repo-api:") == 1
     assert text.count("\n  dpp-registry-api:") == 1
+    assert text.count("image: postgres:16") == 2
+    assert "container_name: dpp-repo-db" in text
+    assert "container_name: dpp-registry-db" in text
+    assert "container_name: dpp-repo-api" in text
+    assert "container_name: dpp-registry-api" in text
+    assert "dpp-repo-db-data:/var/lib/postgresql/data" in text
+    assert "dpp-registry-db-data:/var/lib/postgresql/data" in text
+    assert "dpp-repo-db-data:" in text
+    assert "dpp-registry-db-data:" in text
     assert "${DPP_REPO_IMAGE:?set DPP_REPO_IMAGE}" in text
     assert "${DPP_REGISTRY_IMAGE:?set DPP_REGISTRY_IMAGE}" in text
-    assert '"${DPP_REPO_PORT:-8080}:8080"' in text
-    assert '"${DPP_REGISTRY_PORT:-8081}:8081"' in text
+    assert '"${MOCK_REPO_PORT:-8080}:${MOCK_REPO_PORT:-8080}"' in text
+    assert '"${MOCK_REGISTRY_PORT:-8081}:${MOCK_REGISTRY_PORT:-8081}"' in text
+    assert "DPP_REPO_BACKEND: postgres" in text
+    assert "DPP_REGISTRY_BACKEND: postgres" in text
+    assert (
+        "SPRING_DATASOURCE_URL: "
+        "jdbc:postgresql://dpp-repo-db:5432/${MOCK_REPO_POSTGRES_DB:-dpp_repo}"
+    ) in text
+    assert (
+        "SPRING_DATASOURCE_URL: "
+        "jdbc:postgresql://dpp-registry-db:5432/${MOCK_REGISTRY_POSTGRES_DB:-dpp_registry}"
+    ) in text
     assert "condition: service_healthy" in text
-    assert "DEMO_REPO_PUBLIC_BASE_URL: ${DPP_REPO_BASE_URL:-http://localhost:8080}" in text
-    assert "DEMO_REPO_VERIFICATION_BASE_URL: http://dpp-repo-api:8080" in text
-    for forbidden in (
-        "build:",
-        "container_name:",
-        "postgres",
-        "volumes:",
-        "SPRING_DATASOURCE",
-        "DPP_REPO_BACKEND",
-        "DPP_REGISTRY_BACKEND",
-    ):
-        assert forbidden not in text
+    assert "condition: service_started" in text
+    assert "DEMO_REPO_VERIFICATION_BASE_URL: http://dpp-repo-api:${MOCK_REPO_PORT:-8080}" in text
+    assert "build:" not in text
+    assert "container-registry.gitlab" not in text
 
 
 def test_pinned_profile_uses_approved_tag_plus_digest_references() -> None:
@@ -58,6 +71,10 @@ def test_pinned_profile_uses_approved_tag_plus_digest_references() -> None:
     assert values["DPP_REGISTRY_IMAGE"] == PINNED_REGISTRY
     assert values["DPP_REPO_BASE_URL"] == "http://localhost:8080"
     assert values["DPP_REGISTRY_BASE_URL"] == "http://localhost:8081"
+    assert values["MOCK_REPO_PORT"] == "8080"
+    assert values["MOCK_REGISTRY_PORT"] == "8081"
+    assert values["DPP_REPO_BACKEND"] == "postgres"
+    assert values["DPP_REGISTRY_BACKEND"] == "postgres"
 
 
 def test_maintained_and_legacy_profiles_have_distinct_policy() -> None:
