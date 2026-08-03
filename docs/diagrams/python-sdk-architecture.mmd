@@ -1,0 +1,13 @@
+flowchart TB
+    Core["dpp_sdk.core\nmodels · identifiers · validation · shared errors"]
+    Furniture["dpp_sdk.dpp4fun\nfurniture aggregate · validation · JSON codec"]
+    Clients["dpp_sdk.clients\nrepository and registry HTTP clients"]
+    Consumer["Consumer application"]
+    Demo["examples/java-services-demo\nseparate external consumer"]
+
+    Furniture --> Core
+    Clients --> Core
+    Consumer --> Furniture
+    Consumer --> Clients
+    Demo --> Furniture
+    Demo --> Clients

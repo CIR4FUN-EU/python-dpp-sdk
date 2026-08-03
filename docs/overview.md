@@ -80,3 +80,5 @@ maintained compatibility commitment.
 The package does not provide persistence, databases, repository or registry servers, Docker
 orchestration, Spring application code, EDC/dataspace components, private registry integrations,
 or internal service endpoints. Those concerns must not be inferred from the public Python clients.
+
+Next: [SDK usage](usage.md).

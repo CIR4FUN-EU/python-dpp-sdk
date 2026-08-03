@@ -4,8 +4,16 @@
 
 Install the published SDK into a Python 3.11+ environment:
 
+PowerShell:
+
+```powershell
+python -m pip install dpp-sdk
+```
+
+Linux/macOS:
+
 ```bash
-pip install dpp-sdk
+python -m pip install dpp-sdk
 ```
 
 For a local checkout, use the repository's development environment and run its configured checks

@@ -22,8 +22,16 @@ See the [SDK overview](docs/overview.md) for the public boundaries and dependenc
 
 ## Install
 
+PowerShell:
+
+```powershell
+python -m pip install dpp-sdk
+```
+
+Linux/macOS:
+
 ```bash
-pip install dpp-sdk
+python -m pip install dpp-sdk
 ```
 
 ## Shortest useful path
@@ -33,9 +41,11 @@ Parse a DPP4Fun payload, run its semantic rules, and serialize its interoperable
 ```python
 from dpp_sdk import from_json, to_json, validate_dpp4fun
 
-dpp = from_json(raw_json)
-validate_dpp4fun(dpp)
-outgoing_json = to_json(dpp)
+
+def parse_validate_and_serialize(raw_json: str) -> str:
+    dpp = from_json(raw_json)
+    validate_dpp4fun(dpp)
+    return to_json(dpp)
 ```
 
 `from_json()` performs structural mapping. Call `validate_dpp4fun()` before relying on the

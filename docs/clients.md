@@ -78,3 +78,6 @@ The [Java-services demo](../examples/java-services-demo/README.md) is the option
 consumer that exercises these methods against disposable published Java images. It is not a
 repository implementation and does not prove unsupported internal registry behavior. For typed
 model and codec setup, see [SDK usage](usage.md).
+
+Next: [Java-services demo](../examples/java-services-demo/README.md) for the isolated public-client
+interoperability workflow.

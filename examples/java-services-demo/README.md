@@ -225,14 +225,18 @@ workflow performs that conditional second run automatically.
 
 Optional legacy command:
 
+Run this from `examples/java-services-demo` after the maintained setup has defined
+`$project`/`$sdkWheel` or `project`/`sdk_wheel` and installed the demo wheel. It is optional and
+never a release gate.
+
 ```powershell
-python -m dpp_java_services_demo verify --env-file env\0.4.0.env --legacy `
+& $demoPython -I -m dpp_java_services_demo verify --env-file env\0.4.0.env --legacy `
   --compose-project $project --sdk-wheel $sdkWheel `
   --report-file legacy-verification-report.json
 ```
 
 ```bash
-python -m dpp_java_services_demo verify --env-file env/0.4.0.env --legacy \
+"$demo_python" -I -m dpp_java_services_demo verify --env-file env/0.4.0.env --legacy \
   --compose-project "$project" --sdk-wheel "$sdk_wheel" \
   --report-file legacy-verification-report.json
 ```
@@ -245,6 +249,11 @@ Ordinary root `pytest` does not collect this nested project or require Docker. F
 directory:
 
 ```powershell
+python -m pytest
+python -m pytest --run-java-services
+```
+
+```bash
 python -m pytest
 python -m pytest --run-java-services
 ```

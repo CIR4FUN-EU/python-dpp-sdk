@@ -89,3 +89,4 @@ between a JSON list with a null member and an invalid list encountered by defens
    envelope failures to distinct client error classes; see [Clients](clients.md).
 
 For construction examples, start with [SDK usage](usage.md).
+Next: [Clients](clients.md) for request-time validation, mapping, and transport failures.

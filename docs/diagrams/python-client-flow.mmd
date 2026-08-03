@@ -1,0 +1,7 @@
+flowchart LR
+    App["Consumer application"] --> Repo["DppRepoClient\ncodec + validator"]
+    App --> Registry["DppRegistryClient\nregistration request"]
+    Repo --> RepoApi["Public repository API"]
+    Registry --> RegistryApi["Public registry API"]
+    Repo --> Errors["Distinct client error families"]
+    Registry --> Errors
