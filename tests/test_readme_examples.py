@@ -13,6 +13,11 @@ from dpp_sdk.clients import (
 )
 
 README = Path(__file__).parents[1] / "README.md"
+MODULE_READMES = {
+    "core": README.parent / "src" / "dpp_sdk" / "core" / "README.md",
+    "dpp4fun": README.parent / "src" / "dpp_sdk" / "dpp4fun" / "README.md",
+    "clients": README.parent / "src" / "dpp_sdk" / "clients" / "README.md",
+}
 
 
 def test_readme_documents_current_model_and_client_contracts() -> None:
@@ -28,6 +33,14 @@ def test_readme_documents_current_model_and_client_contracts() -> None:
         "DppMappingClientError",
         "caller-owned",
         "UpdateDataElementRequest",
+        "## Standards alignment",
+        "EN 18222:2026",
+        "not a formal compliance implementation",
+        "## Known standards limitations",
+        "project-defined",
+        "complete generic implementation of RFC 7396 JSON Merge Patch",
+        "complete implementation of RFC 9535 JSONPath",
+        "does not record lifecycle events",
     ):
         assert required_text in readme
     assert 'dppApiEndpoint="https://repo.example.com"' in readme
@@ -68,3 +81,34 @@ def test_readme_registry_example_emits_canonical_names_without_network() -> None
     }
     assert response.registrationId == "REG-1"
     assert UpdateDataElementRequest(payload=None).payload is None
+
+
+def test_module_readmes_have_single_owner_links_and_root_build_commands() -> None:
+    required_text = {
+        "core": (
+            "# DPP SDK core module",
+            "validate_dpp_core()",
+            "python -m build",
+            "tests/test_core_model.py tests/test_core_validation.py",
+            "not separately built or",
+        ),
+        "dpp4fun": (
+            "# DPP SDK DPP4Fun module",
+            "Dpp4FunJsonCodec",
+            "python -m build",
+            "tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py",
+            "not a separately buildable or",
+        ),
+        "clients": (
+            "# DPP SDK clients module",
+            "DppRepoClient[T]",
+            "python -m build",
+            "tests/test_clients.py tests/test_end_to_end.py",
+            "not a separately buildable or",
+        ),
+    }
+
+    for module, expected in required_text.items():
+        content = MODULE_READMES[module].read_text(encoding="utf-8")
+        for text in expected:
+            assert text in content

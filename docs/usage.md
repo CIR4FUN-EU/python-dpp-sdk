@@ -106,7 +106,8 @@ except DppValidationError as exc:
 ```
 
 The validators are fail-fast and do not mutate or repair the model. The
-[models and validation guide](models-and-validation.md) owns the detailed rule reference.
+The [core module guide](../src/dpp_sdk/core/README.md) and
+[DPP4Fun module guide](../src/dpp_sdk/dpp4fun/README.md) own the detailed rule descriptions.
 
 ## Serialization and deserialization
 
@@ -156,7 +157,8 @@ with DppRepoClient(
     fetched = repo.read_dpp_by_id(created.dppId)
 ```
 
-See [Clients](clients.md) for all supported repository operations and their error behavior.
+See the [clients module guide](../src/dpp_sdk/clients/README.md) for all supported repository
+operations and their error behavior.
 
 ## Registry client
 
@@ -191,5 +193,6 @@ when callers need to decide whether a request was sent.
 Each client closes an HTTPX client that it created itself when `close()` is called or its context
 manager exits. If you inject an `httpx.Client`, it stays caller-owned and is not closed by the SDK.
 
-Next: consult [Clients](clients.md) for network behavior, or
-[Models and validation](models-and-validation.md) for rule details.
+Next: consult the [clients module guide](../src/dpp_sdk/clients/README.md) for network behavior, the
+[core module guide](../src/dpp_sdk/core/README.md) for reusable-model rules, or the
+[DPP4Fun module guide](../src/dpp_sdk/dpp4fun/README.md) for aggregate and codec rules.

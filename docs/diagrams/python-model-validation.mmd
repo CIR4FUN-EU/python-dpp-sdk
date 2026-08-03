@@ -1,6 +1,0 @@
-flowchart LR
-    Input["Typed fields or JSON"] --> Structural["Pydantic structural construction"]
-    Structural -->|model| Semantic["Explicit semantic validator"]
-    Semantic -->|valid DPP4Fun| Codec["DPP4Fun JSON codec / client"]
-    Structural -->|shape failure| Mapping["construction or mapping error"]
-    Semantic -->|rule failure| Validation["DppValidationError"]

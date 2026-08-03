@@ -12,10 +12,9 @@ entire Compose lifecycle.
 ## Relationship to the SDK guides
 
 This demo consumes the installed public SDK; it is not a service implementation or an extension of
-the `dpp_sdk` import package. Read the [SDK overview](../../docs/overview.md) for package
-boundaries, [SDK usage](../../docs/usage.md) for SDK-only construction and codec examples, and
-[Clients](../../docs/clients.md) for the public repository and registry client operations exercised
-here. The root [README](../../README.md) remains the SDK documentation entry point.
+the `dpp_sdk` import package. Read [SDK usage](../../docs/usage.md) for SDK-only construction and
+codec examples, [Clients](../../src/dpp_sdk/clients/README.md) for the public repository and registry
+client operations exercised here, and the root [README](../../README.md) for scope and module links.
 
 ## Compatibility and evidence policy
 
