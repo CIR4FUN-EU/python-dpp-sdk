@@ -9,6 +9,14 @@ by the pulled Java API images; it does not add a Python persistence implementati
 The CLI never pulls, starts, stops, or removes containers. The operator or CI workflow owns the
 entire Compose lifecycle.
 
+## Relationship to the SDK guides
+
+This demo consumes the installed public SDK; it is not a service implementation or an extension of
+the `dpp_sdk` import package. Read the [SDK overview](../../docs/overview.md) for package
+boundaries, [SDK usage](../../docs/usage.md) for SDK-only construction and codec examples, and
+[Clients](../../docs/clients.md) for the public repository and registry client operations exercised
+here. The root [README](../../README.md) remains the SDK documentation entry point.
+
 ## Compatibility and evidence policy
 
 [`env/pinned.env`](env/pinned.env) is the required reproducible default and uses immutable
