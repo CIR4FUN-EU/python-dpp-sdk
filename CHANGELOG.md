@@ -25,6 +25,8 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   externally supplied endpoint.
 
 ### Fixed
+- The installed Java-services demo's SDK-only modes now defer service-profile loading, so `sdk`
+  and `sdk --json` run from an installed nested wheel without a checkout or `env/pinned.env`.
 - Bill-of-materials validation now rejects null material, component, and part members
   with fail-fast indexed `DppValidationError` paths instead of leaking `AttributeError`.
 - History reads now normalize timezone-aware datetimes to the Java-compatible canonical UTC

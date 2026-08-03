@@ -85,11 +85,20 @@ SDK-only use:
 
 ```powershell
 .\.java-services-demo-venv\Scripts\python.exe -m dpp_java_services_demo sdk
+.\.java-services-demo-venv\Scripts\python.exe -m dpp_java_services_demo sdk --json
 ```
 
 ```bash
 ./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk
+./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk --json
 ```
+
+These `sdk` commands work from any directory after installation. They do not read an environment
+profile or require Docker, Compose, service URLs, or image references. The `services`, `all`, and
+`verify` modes are service-dependent and require either `--env-file` or a discoverable local demo
+profile. For those modes, values resolve in this order: process environment overrides the selected
+environment profile, and the profile supplies the documented defaults. A missing service profile
+is reported as a mode-specific configuration error.
 
 ## Pull, start, verify, capture, and stop
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from dpp_java_services_demo import __main__ as cli
+from dpp_java_services_demo.config import DemoConfig
 from dpp_java_services_demo.image_identity import ImageEquivalence, ImageIdentityReport
 from dpp_java_services_demo.reporting import LiveRun, ScenarioResult, ScenarioStatus
 
@@ -71,6 +72,58 @@ def test_sdk_mode_runs_all_sdk_scenarios_successfully(
     assert "SDK-01" in output and "SDK-15" in output
     assert "FAILED" not in output
     assert "NOT_IMPLEMENTED" not in output
+
+
+@pytest.mark.parametrize("arguments", (["sdk"], ["sdk", "--json"]))
+def test_sdk_mode_does_not_load_service_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    arguments: list[str],
+) -> None:
+    def unexpected_service_configuration(*_args: object, **_kwargs: object) -> DemoConfig:
+        raise AssertionError("SDK-only mode must not load service configuration")
+
+    monkeypatch.setattr(cli, "load_config", unexpected_service_configuration)
+
+    assert cli.main(arguments) == 0
+
+
+@pytest.mark.parametrize("mode", ("all", "verify"))
+def test_combined_modes_load_service_configuration_only_after_sdk_scenarios(
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    events: list[str] = []
+
+    def sdk_scenarios(_run_id: object) -> tuple[ScenarioResult, ...]:
+        events.append("sdk")
+        return (_passed("SDK-01", "SDK_LOCAL"),)
+
+    def unavailable_configuration(*_args: object, **_kwargs: object) -> DemoConfig:
+        events.append("configuration")
+        raise ValueError("missing profile")
+
+    monkeypatch.setattr(cli, "run_sdk_scenarios", sdk_scenarios)
+    monkeypatch.setattr(cli, "load_config", unavailable_configuration)
+
+    assert cli.main([mode]) == 2
+    assert events == ["sdk", "configuration"]
+    assert f"{mode} mode requires service configuration" in capsys.readouterr().err
+
+
+def test_services_mode_names_missing_service_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def unavailable_configuration(*_args: object, **_kwargs: object) -> DemoConfig:
+        raise ValueError("missing profile")
+
+    monkeypatch.setattr(cli, "load_config", unavailable_configuration)
+
+    assert cli.main(["services"]) == 2
+    assert (
+        "services mode requires service configuration: missing profile" in capsys.readouterr().err
+    )
 
 
 @pytest.mark.parametrize(
@@ -239,7 +292,7 @@ def test_installed_sdk_provenance_is_bound_to_supplied_wheel(
 
 
 def test_legacy_profile_requires_explicit_flag(capsys: pytest.CaptureFixture[str]) -> None:
-    exit_code = cli.main(["sdk", "--env-file", "env/0.4.0.env"])
+    exit_code = cli.main(["services", "--env-file", "env/0.4.0.env"])
     error = capsys.readouterr().err
 
     assert exit_code == 2

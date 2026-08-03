@@ -7,7 +7,7 @@ import hashlib
 import json
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, distribution
@@ -220,9 +220,18 @@ def _summary(mode: str) -> str:
     }[mode]
 
 
+def _load_service_config(args: argparse.Namespace) -> DemoConfig:
+    """Load configuration only for a mode that contacts Java services."""
+
+    try:
+        return load_config(args.env_file, legacy=args.legacy)
+    except ValueError as exc:
+        raise ValueError(f"{args.mode} mode requires service configuration: {exc}") from exc
+
+
 def _report(
     mode: str,
-    config: DemoConfig,
+    load_service_config: Callable[[], DemoConfig] | None = None,
     *,
     compose_project: str | None = None,
     sdk_wheel: Path | None = None,
@@ -233,16 +242,21 @@ def _report(
     cleanup_warnings: tuple[str, ...] = ()
     image_identity: ImageIdentityReport | None = None
     image_error: ImageInspectionError | None = None
+    config: DemoConfig | None = None
 
     if mode in {"sdk", "all", "verify"}:
         results = run_sdk_scenarios(run_id)
     if mode == "verify":
         results = (*results, *run_controlled_scenarios())
     if mode in {"services", "all", "verify"}:
+        if load_service_config is None:
+            raise ValueError(f"{mode} mode requires service configuration")
+        config = load_service_config()
         live = _run_live(config, run_id)
         results = (*results, *live.results)
         cleanup_warnings = live.cleanup_warnings
     if mode == "verify":
+        assert config is not None
         results = (*results, _installed_sdk_result(config, sdk_wheel))
         try:
             image_identity = capture_image_identities(
@@ -259,13 +273,14 @@ def _report(
         for result in results
     )
     legacy_status = LegacyCompatibilityStatus.LEGACY_COMPATIBILITY_NOT_RUN
-    if config.legacy:
+    is_legacy = config is not None and config.legacy
+    if is_legacy:
         legacy_status = (
             LegacyCompatibilityStatus.LEGACY_COMPATIBILITY_FAILED
             if failed
             else LegacyCompatibilityStatus.LEGACY_COMPATIBILITY_PASSED
         )
-    if mode == "verify" and not config.legacy:
+    if mode == "verify" and not is_legacy:
         verdict = (
             InteroperabilityVerdict.PYTHON_JAVA_SERVICES_INTEROPERABILITY_FAILED
             if failed
@@ -275,13 +290,13 @@ def _report(
         verdict = InteroperabilityVerdict.PYTHON_JAVA_SERVICES_INTEROPERABILITY_INCOMPLETE
 
     sdk_file = dpp_sdk.__file__
-    commit = _git_commit(config.env_file)
+    commit = _git_commit(config.env_file if config is not None else Path.cwd())
     return DemoReport(
         mode=mode,
         run_id=run_id,
         results=results,
         summary=_summary(mode),
-        partial=mode != "verify" or config.legacy,
+        partial=mode != "verify" or is_legacy,
         sdk_version=dpp_sdk.__version__,
         sdk_location=str(Path(sdk_file).resolve()) if sdk_file is not None else "<unknown>",
         sdk_wheel=str(sdk_wheel.resolve()) if sdk_wheel is not None else "",
@@ -290,8 +305,8 @@ def _report(
             if sdk_wheel is not None and sdk_wheel.resolve().is_file()
             else ""
         ),
-        repo_image=config.repo_image,
-        registry_image=config.registry_image,
+        repo_image=config.repo_image if config is not None else "",
+        registry_image=config.registry_image if config is not None else "",
         legacy_status=legacy_status,
         python_repo_commit=commit,
         demo_commit=commit,
@@ -350,20 +365,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     try:
-        config = load_config(args.env_file, legacy=args.legacy)
+        report = _report(
+            args.mode,
+            (lambda: _load_service_config(args))
+            if args.mode in {"services", "all", "verify"}
+            else None,
+            compose_project=args.compose_project,
+            sdk_wheel=args.sdk_wheel,
+        )
     except ValueError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
-    report = _report(
-        args.mode,
-        config,
-        compose_project=args.compose_project,
-        sdk_wheel=args.sdk_wheel,
-    )
     if args.report_file is not None:
         _write_report(args.report_file, report)
     print(render_json(report) if args.json else render_text(report))
-    if config.legacy:
+    if args.mode in {"services", "all", "verify"} and args.legacy:
         return 0
     return 1 if has_required_failure(report) else 0
 
