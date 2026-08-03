@@ -1,7 +1,6 @@
 """HTTP clients for the DPP repository and registry APIs (prEN-18222-aligned).
 
-Port of `dpp.repo.client.*` / `dpp.registry.client.*` from
-../dpp-sdk-platform/dpp-sdk-clients.
+Provides repository and registry HTTP client contracts.
 """
 
 from ._http import DppCodec, DppValidator

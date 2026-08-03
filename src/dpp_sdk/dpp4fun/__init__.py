@@ -1,6 +1,6 @@
 """Furniture-specific DPP aggregate, validation, and JSON transport.
 
-Port of `dppsdk.dpp4fun.*` from ../dpp-sdk-platform/dpp-datamodel/dpp4fun.
+Furniture-specific DPP aggregate, validation, and JSON transport.
 """
 
 from .model import (

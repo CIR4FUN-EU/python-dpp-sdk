@@ -1,7 +1,7 @@
 """Smoke test confirming the package imports and the scaffold is wired correctly.
 
 Replace/extend as real modules land. The full suite should mirror the Java tests in
-../dpp-sdk-platform (round-trip, edge cases, inbound validation, end-to-end scenarios).
+the maintained SDK contract (round-trip, edge cases, inbound validation, end-to-end scenarios).
 """
 
 import pytest
