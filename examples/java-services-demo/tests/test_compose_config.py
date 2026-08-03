@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from dpp_java_services_demo.config import load_config
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -88,6 +90,20 @@ def test_maintained_and_legacy_profiles_have_distinct_policy() -> None:
     assert legacy["DPP_REGISTRY_IMAGE"].endswith(":0.4.0")
     assert "optional legacy compatibility" in legacy_text.lower()
     assert "non-blocking" in legacy_text.lower()
+
+
+@pytest.mark.parametrize("profile", ("pinned.env", "0.5.0.env", "0.4.0.env"))
+def test_profiles_supply_java_postgres_runtime_defaults(profile: str) -> None:
+    values = _profile_values(profile)
+
+    assert values["MOCK_REPO_PORT"] == "8080"
+    assert values["MOCK_REGISTRY_PORT"] == "8081"
+    assert values["DPP_REPO_PORT"] == "8080"
+    assert values["DPP_REGISTRY_PORT"] == "8081"
+    assert values["DPP_REPO_BACKEND"] == "postgres"
+    assert values["DPP_REGISTRY_BACKEND"] == "postgres"
+    assert values["MOCK_REPO_POSTGRES_PORT"] == "5433"
+    assert values["MOCK_REGISTRY_POSTGRES_PORT"] == "5434"
 
 
 def test_default_configuration_is_the_pinned_profile() -> None:
