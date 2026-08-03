@@ -37,10 +37,7 @@ def test_compose_matches_java_postgres_topology_with_public_api_images() -> None
     assert text.count("\n  dpp-repo-api:") == 1
     assert text.count("\n  dpp-registry-api:") == 1
     assert text.count("image: postgres:16") == 2
-    assert "container_name: dpp-repo-db" in text
-    assert "container_name: dpp-registry-db" in text
-    assert "container_name: dpp-repo-api" in text
-    assert "container_name: dpp-registry-api" in text
+    assert "container_name:" not in text
     assert "dpp-repo-db-data:/var/lib/postgresql/data" in text
     assert "dpp-registry-db-data:/var/lib/postgresql/data" in text
     assert "dpp-repo-db-data:" in text

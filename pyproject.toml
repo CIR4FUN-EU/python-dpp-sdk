@@ -47,6 +47,7 @@ path = "src/dpp_sdk/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dpp_sdk"]
+exclude = ["**/AGENTS.md", "**/.codex/**"]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -56,7 +57,13 @@ include = [
     "CHANGELOG.md",
     "LICENSE",
 ]
-exclude = ["examples/java-services-demo"]
+exclude = [
+    "examples/java-services-demo",
+    "**/AGENTS.md",
+    "**/.codex/**",
+    "docs/python-agent-drafts/**",
+    "docs/java-python-parity/**",
+]
 
 [tool.ruff]
 line-length = 100

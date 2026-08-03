@@ -1,6 +1,5 @@
 services:
   dpp-repo-db:
-    container_name: dpp-repo-db
     image: postgres:16
     environment:
       POSTGRES_DB: ${MOCK_REPO_POSTGRES_DB:-dpp_repo}
@@ -17,7 +16,6 @@ services:
       retries: 5
 
   dpp-registry-db:
-    container_name: dpp-registry-db
     image: postgres:16
     environment:
       POSTGRES_DB: ${MOCK_REGISTRY_POSTGRES_DB:-dpp_registry}
@@ -34,7 +32,6 @@ services:
       retries: 5
 
   dpp-repo-api:
-    container_name: dpp-repo-api
     image: ${DPP_REPO_IMAGE:?set DPP_REPO_IMAGE}
     depends_on:
       dpp-repo-db:
@@ -50,7 +47,6 @@ services:
       - "${MOCK_REPO_PORT:-8080}:${MOCK_REPO_PORT:-8080}"
 
   dpp-registry-api:
-    container_name: dpp-registry-api
     image: ${DPP_REGISTRY_IMAGE:?set DPP_REGISTRY_IMAGE}
     depends_on:
       dpp-repo-api:
