@@ -162,6 +162,48 @@ def main() -> None:
         else:  # pragma: no cover - executable proof guard
             raise AssertionError("null repository payload escaped mapping translation")
 
+    partial_requests: list[bytes] = []
+
+    def partial_handler(request: httpx.Request) -> httpx.Response:
+        partial_requests.append(request.content)
+        if request.url.raw_path == b"/v1/dpps/partial":
+            return httpx.Response(
+                200,
+                json={"statusCode": "Success", "payload": json.loads(serialized)},
+            )
+        assert request.url.raw_path == b"/v1/dpps/partial/elements/%24.productName"
+        return httpx.Response(200, json={"statusCode": "Success", "payload": {"accepted": True}})
+
+    with httpx.Client(transport=httpx.MockTransport(partial_handler)) as http_client:
+        partial_repository = DppRepoClient(
+            "https://repo.example",
+            codec=codec,
+            validator=validate_dpp4fun,
+            client=http_client,
+        )
+        assert partial_repository.update_dpp_by_id("partial", {"weight": 2.5}) == updated
+        assert partial_repository.update_data_element("partial", "$.productName", "Grüße") == {
+            "accepted": True
+        }
+        for operation, invalid, cause_type in (
+            (partial_repository.update_dpp_by_id, float("nan"), ValueError),
+            (
+                lambda dpp_id, value: partial_repository.update_data_element(
+                    dpp_id, "$.productName", value
+                ),
+                object(),
+                TypeError,
+            ),
+        ):
+            try:
+                operation("partial", invalid)
+            except DppMappingClientError as exc:
+                assert isinstance(exc.__cause__, cause_type)
+                assert "before request" in str(exc)
+            else:  # pragma: no cover - executable proof guard
+                raise AssertionError("invalid partial JSON escaped mapping translation")
+    assert partial_requests == [b'{"weight": 2.5}', b'"Gr\\u00fc\\u00dfe"']
+
     registry_body = (
         '{"uniqueProductIdentifier":"11111111-1111-1111-1111-111111111111",'
         '"digitalProductPassportId":"DPP~1?#",'

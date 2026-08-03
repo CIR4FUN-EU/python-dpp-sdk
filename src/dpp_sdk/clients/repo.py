@@ -141,7 +141,7 @@ class DppRepoClient(Generic[T]):
         return ReadDppIdsResponse.model_validate(payload)
 
     def update_dpp_by_id(self, dpp_id: str, partial_dpp: Any) -> T:
-        body = json.dumps(partial_dpp)
+        body = self._serialize_partial_update(partial_dpp, "update_dpp_by_id")
         response = self._send("PATCH", self._dpp_path(dpp_id), body)
         return self._decode_dpp_payload(response)
 
@@ -155,7 +155,7 @@ class DppRepoClient(Generic[T]):
         return _http.require_payload(response)
 
     def update_data_element(self, dpp_id: str, element_path: str, payload: Any) -> Any:
-        body = json.dumps(payload)
+        body = self._serialize_partial_update(payload, "update_data_element")
         response = self._send("PATCH", self._data_element_path(dpp_id, element_path), body)
         return _http.require_payload(response)
 
@@ -173,6 +173,16 @@ class DppRepoClient(Generic[T]):
         except Exception as exc:  # noqa: BLE001 - re-raised as a client error
             raise DppMappingClientError("DPP serialization failed before request") from exc
         return json_str
+
+    @staticmethod
+    def _serialize_partial_update(payload: Any, operation: str) -> str:
+        """Encode a partial-update body as strict interoperable JSON before I/O."""
+        try:
+            return json.dumps(payload, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise DppMappingClientError(
+                f"{operation} payload serialization failed before request"
+            ) from exc
 
     def _decode_dpp_payload(self, response: Any) -> T:
         payload = _http.require_payload(response)

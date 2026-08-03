@@ -94,6 +94,11 @@ Fine-grained update sends the supplied payload itself as the JSON request body, 
 JSON `null`; it does not wrap the value. The client transmits the provided element path but does not
 interpret or validate it as a complete JSONPath implementation.
 
+Partial and fine-grained update bodies use strict JSON. Finite numbers, Unicode text, objects,
+lists, and `None` retain their ordinary JSON representation. `NaN`, `Infinity`, `-Infinity`, and
+values JSON cannot represent raise `DppMappingClientError` before any request is sent; the original
+`ValueError` or `TypeError` remains the exception cause.
+
 | Error family | Meaning |
 | --- | --- |
 | `DppValidationClientError` | Local DPP validation failed before create is sent. |

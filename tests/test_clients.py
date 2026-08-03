@@ -420,6 +420,75 @@ def test_partial_patch_decodes_response_without_whole_model_validation(
     assert validator_calls == 0
 
 
+@pytest.mark.parametrize(
+    ("operation", "payload", "cause_type"),
+    [
+        pytest.param("full", float("nan"), ValueError, id="full-top-level-nan"),
+        pytest.param("element", float("nan"), ValueError, id="element-top-level-nan"),
+        pytest.param("full", {"nested": [float("nan")]}, ValueError, id="full-nested-nan"),
+        pytest.param("element", {"nested": [float("nan")]}, ValueError, id="element-nested-nan"),
+        pytest.param("full", float("inf"), ValueError, id="full-positive-infinity"),
+        pytest.param("element", float("inf"), ValueError, id="element-positive-infinity"),
+        pytest.param("full", float("-inf"), ValueError, id="full-negative-infinity"),
+        pytest.param("element", float("-inf"), ValueError, id="element-negative-infinity"),
+        pytest.param("full", object(), TypeError, id="full-object"),
+        pytest.param("element", {"bad": {1, 2}}, TypeError, id="element-set"),
+    ],
+)
+def test_partial_updates_reject_unmappable_json_before_transport(
+    operation: str, payload: Any, cause_type: type[Exception]
+) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        pytest.fail("invalid partial JSON must not reach the transport")
+
+    repo = _make_repo(handler)
+    with pytest.raises(
+        DppMappingClientError,
+        match=f"update_{'dpp_by_id' if operation == 'full' else 'data_element'}",
+    ) as exc:
+        if operation == "full":
+            repo.update_dpp_by_id("DPP-1", payload)
+        else:
+            repo.update_data_element("DPP-1", "$.weight", payload)
+
+    assert isinstance(exc.value.__cause__, cause_type)
+    assert calls == 0
+
+
+@pytest.mark.parametrize("operation", ["full", "element"])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param(7, id="integer"),
+        pytest.param(2.5, id="float"),
+        pytest.param("Möbel 🪑", id="unicode"),
+        pytest.param(None, id="null"),
+    ],
+)
+def test_partial_updates_preserve_valid_json_wire_bodies(
+    operation: str, payload: Any, valid_dpp4fun: Dpp4Fun
+) -> None:
+    captured: list[bytes] = []
+    flat = json.loads(to_json(valid_dpp4fun))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request.content)
+        response_payload: Any = flat if operation == "full" else {"accepted": True}
+        return httpx.Response(200, json={"statusCode": "Success", "payload": response_payload})
+
+    repo = _make_repo(handler)
+    if operation == "full":
+        assert repo.update_dpp_by_id("DPP-1", payload) == valid_dpp4fun
+    else:
+        assert repo.update_data_element("DPP-1", "$.weight", payload) == {"accepted": True}
+
+    assert captured == [json.dumps(payload).encode()]
+
+
 @pytest.mark.parametrize("payload", [None, "text", 1, True, ["a"], {"x": 1}])
 def test_element_patch_preserves_every_json_value_and_bypasses_validator(payload: Any) -> None:
     calls = 0
