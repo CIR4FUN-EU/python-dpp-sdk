@@ -186,6 +186,13 @@ $env:DPP_REPO_BASE_URL = "http://localhost:18080"
 $env:DPP_REGISTRY_BASE_URL = "http://localhost:18081"
 ```
 
+```bash
+export DPP_REPO_PORT=18080
+export DPP_REGISTRY_PORT=18081
+export DPP_REPO_BASE_URL=http://localhost:18080
+export DPP_REGISTRY_BASE_URL=http://localhost:18081
+```
+
 ## Maintained, semantic-tag, and legacy runs
 
 The release gates are:
