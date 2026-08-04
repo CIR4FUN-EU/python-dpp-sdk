@@ -159,10 +159,11 @@ All local commands in this section run from `Dpp-SDK-python/dpp-python-sdk`.
 
 1. Choose a published install above, or create `.venv` and install this checkout.
 2. Run the import probe above, then use the small SDK example below.
-3. Run the SDK-only demo after following its isolated-wheel setup:
-   `./.java-services-demo-venv/Scripts/python.exe -m dpp_java_services_demo sdk --json` on
-   PowerShell, or `./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk --json`
-   on Linux/macOS.
+3. Run the SDK-only educational walkthrough after following the isolated-wheel setup in the
+   [Java-services demo guide](examples/java-services-demo/README.md#sdk-only-walkthrough):
+   `./.java-services-demo-venv/Scripts/python.exe -m dpp_java_services_demo sdk` on PowerShell, or
+   `./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk` on Linux/macOS. Use
+   `--summary` for compact verification or `--json` for machine-readable evidence.
 4. Run SDK tests with the development interpreter; focused core, validation, client, and
    documentation commands are owned by the [release guide](RELEASING.md).
 5. Only when you need live interoperability, follow the [Java-services demo guide]

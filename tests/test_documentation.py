@@ -24,6 +24,7 @@ MARKDOWN_FILES = (
     "src/dpp_sdk/dpp4fun/README.md",
     "src/dpp_sdk/clients/README.md",
     "examples/java-services-demo/README.md",
+    "examples/java-services-demo/OPERATIONS.md",
 )
 FAMILIES = {
     "README.md": (
@@ -205,10 +206,10 @@ def _validate_root_command_convention(overrides: dict[str, str] | None = None) -
             f"{relative} does not state repository root as its command working directory"
         )
     demo = overrides.get(
-        "examples/java-services-demo/README.md",
-        _read("examples/java-services-demo/README.md"),
+        "examples/java-services-demo/README.md", _read("examples/java-services-demo/README.md")
     )
-    assert "from `examples/java-services-demo`" not in demo
+    operations = _read("examples/java-services-demo/OPERATIONS.md")
+    assert "from `examples/java-services-demo`" not in demo + operations
     assert "docker compose -f $composeFile" in demo
     assert 'docker compose -f "$compose_file"' in demo
 
@@ -266,17 +267,18 @@ def test_installation_and_demo_commands_keep_their_working_directory_contracts()
     usage = _read("docs/usage.md")
     release = _read("RELEASING.md")
     demo = _read("examples/java-services-demo/README.md")
+    operations = _read("examples/java-services-demo/OPERATIONS.md")
 
     for text in (readme, usage):
         assert re.search(r"\*\*Run from:\*\* any\s+directory", text)
         assert "directory-independent" in text
     assert "**Run from:** the Python repository root" in readme
     assert "**Run from:** the Python repository root" in release
-    assert "from `examples/java-services-demo`" not in demo
+    assert "from `examples/java-services-demo`" not in demo + operations
     assert "dpp-java-services-demo-$PID" in demo
     assert "dpp-java-services-demo-$$" in demo
-    assert "$repoUrl = if ($env:DPP_REPO_BASE_URL)" in demo
-    assert 'repo_url="${DPP_REPO_BASE_URL:-http://localhost:8080}"' in demo
+    assert 'DPP_REPO_BASE_URL = "http://localhost:18080"' in operations
+    assert "DPP_REPO_BASE_URL=http://localhost:18080" in operations
     assert "down --volumes --remove-orphans" in demo
     assert "only the project created by this guide" in demo
 
@@ -285,6 +287,7 @@ def test_command_guides_use_existing_relative_paths_and_separate_shells() -> Non
     readme = _read("README.md")
     release = _read("RELEASING.md")
     demo = _read("examples/java-services-demo/README.md")
+    operations = _read("examples/java-services-demo/OPERATIONS.md")
 
     for relative in (
         "examples/java-services-demo/compose.yaml",
@@ -300,4 +303,38 @@ def test_command_guides_use_existing_relative_paths_and_separate_shells() -> Non
     assert 'python -m build --outdir "$build_root"' in release
     assert "python -m twine check" in release
     assert 'compose_file="$demo_dir/compose.yaml"' in demo
-    assert not re.search(r"[A-Za-z]:\\\\", readme + release + demo)
+    assert not re.search(r"[A-Za-z]:\\\\", readme + release + demo + operations)
+
+
+def test_maintained_sdk_only_references_match_the_current_scenario_contract() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+    changelog = _read("CHANGELOG.md")
+    scenario_path = ROOT / "examples/java-services-demo" / "src/dpp_java_services_demo"
+    scenarios = (scenario_path / "sdk_scenarios.py").read_text(encoding="utf-8")
+
+    for text in (demo, changelog, scenarios):
+        assert "SDK-01 through SDK-17" in text
+        assert "SDK-01 through SDK-15" not in text
+    assert "EXPECTED_ERROR" in demo
+
+
+def test_demo_report_commands_use_temporary_output_instead_of_the_worktree() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+    operations = _read("examples/java-services-demo/OPERATIONS.md")
+    ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    assert 'Join-Path ([System.IO.Path]::GetTempPath()) "dpp-java-services-demo-$PID.json"' in demo
+    assert 'report="$(mktemp -t dpp-java-services-demo-XXXXXX.json)"' in demo
+    assert "examples/java-services-demo/verification-report.json" not in demo + operations
+    assert "verification-report.json" in ignored
+
+
+def test_demo_readme_keeps_cleanup_with_the_live_lifecycle_and_links_operations() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+    operations = _read("examples/java-services-demo/OPERATIONS.md")
+
+    assert "[operations reference](OPERATIONS.md)" in demo
+    assert "Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue" in demo + operations
+    assert 'rm -f "$report"' in demo + operations
+    assert "down --volumes --remove-orphans" in demo
+    assert demo.count("--run-java-services") == 2

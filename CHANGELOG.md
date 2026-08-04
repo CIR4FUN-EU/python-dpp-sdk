@@ -8,7 +8,7 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 
 ### Added
 - An isolated `examples/java-services-demo` consumer project with reproducible Java image
-  profiles, pull-only memory-mode Compose infrastructure, SDK-01 through SDK-15, complete public
+  profiles, pull-only memory-mode Compose infrastructure, SDK-01 through SDK-17, complete public
   repository/registry interoperability scenarios, controlled edge contracts, installed-import
   proof, dynamic image identity evidence, and retained verification reports.
 - A fresh-installed-wheel cross-component proof covering validated immutable updates,
