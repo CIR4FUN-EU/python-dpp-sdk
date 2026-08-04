@@ -33,6 +33,21 @@ class InteroperabilityVerdict(StrEnum):
 
 
 @dataclass(frozen=True)
+class ScenarioTeaching:
+    """Structured, bounded evidence used by both SDK-only renderers."""
+
+    group: str
+    evidence_class: str
+    purpose: str
+    input: dict[str, object]
+    operation: dict[str, str]
+    expected_behavior: str
+    observed_result: dict[str, object]
+    explanation: str
+    why_it_matters: str
+
+
+@dataclass(frozen=True)
 class ScenarioResult:
     scenario_id: str
     name: str
@@ -41,6 +56,7 @@ class ScenarioResult:
     duration_seconds: float
     summary: str
     details: str = ""
+    teaching: ScenarioTeaching | None = None
 
 
 @dataclass(frozen=True)
@@ -98,6 +114,7 @@ class DemoReport:
     verdict: InteroperabilityVerdict = (
         InteroperabilityVerdict.PYTHON_JAVA_SERVICES_INTEROPERABILITY_INCOMPLETE
     )
+    mode_verdict: str = ""
 
 
 def scenario_totals(results: tuple[ScenarioResult, ...]) -> ScenarioTotals:
@@ -124,10 +141,112 @@ def has_required_failure(report: DemoReport) -> bool:
     return any(result.status in blocking for result in report.results)
 
 
-def render_text(report: DemoReport) -> str:
+def _append_evidence(lines: list[str], value: object, *, indent: int) -> None:
+    """Render bounded JSON-native evidence without Python reprs."""
+
+    prefix = " " * indent
+    if isinstance(value, dict):
+        if not value:
+            lines.append(f"{prefix}{{}}")
+            return
+        for key, item in value.items():
+            if isinstance(item, (dict, list)):
+                lines.append(f"{prefix}{key}:")
+                _append_evidence(lines, item, indent=indent + 2)
+            else:
+                lines.append(f"{prefix}{key}: {item}")
+        return
+    if isinstance(value, list):
+        if not value:
+            lines.append(f"{prefix}[]")
+            return
+        for item in value:
+            if isinstance(item, dict):
+                first, *rest = item.items()
+                if first:
+                    key, scalar = first
+                    lines.append(f"{prefix}- {key}: {scalar}")
+                    _append_evidence(lines, dict(rest), indent=indent + 2)
+                else:
+                    lines.append(f"{prefix}- {{}}")
+            else:
+                rendered = '""' if item == "" else str(item)
+                lines.append(f"{prefix}- {rendered}")
+        return
+    lines.append(f"{prefix}{value!s}")
+
+
+def _render_sdk_detailed(report: DemoReport) -> str:
+    totals = scenario_totals(report.results)
+    lines = [
+        "DPP Python SDK demonstration",
+        "============================",
+        "",
+        f"SDK version: {report.sdk_version}",
+        "Mode: SDK-only",
+        "Scope: typed models, validation, codecs, immutable updates, public errors, and",
+        "       controlled client ownership. No Docker, Java service, network, or profile is used.",
+        f"Verdict: {report.mode_verdict}",
+    ]
+    previous_group = ""
+    for result in report.results:
+        teaching = result.teaching
+        if teaching is None:
+            continue
+        if teaching.group != previous_group:
+            group_title = teaching.group.replace("_", " ").title()
+            lines.extend(("", group_title, "-" * len(group_title)))
+            previous_group = teaching.group
+        lines.extend(
+            (
+                "",
+                f"[{result.scenario_id}] {result.name}",
+                "Status: "
+                f"{'PASS' if result.status is ScenarioStatus.PASSED else result.status.value}",
+                f"Evidence: {teaching.evidence_class}",
+                "",
+                "Purpose",
+                f"  {teaching.purpose}",
+                "Input",
+            )
+        )
+        _append_evidence(lines, teaching.input, indent=2)
+        lines.extend(
+            (
+                "SDK operation",
+                f"  {teaching.operation['display']}",
+                "Expected behavior",
+                f"  {teaching.expected_behavior}",
+                "Observed result",
+            )
+        )
+        _append_evidence(lines, teaching.observed_result, indent=2)
+        lines.extend(
+            (
+                "Explanation",
+                f"  {teaching.explanation}",
+                "Why this matters",
+                f"  {teaching.why_it_matters}",
+            )
+        )
+    lines.extend(
+        (
+            "",
+            f"Summary: total={totals.total} pass={totals.passed} "
+            f"expected_error={totals.expected_error} fail={totals.failed}",
+            "Next step: run with --summary for compact verification or --json for "
+            "machine-readable evidence.",
+        )
+    )
+    return "\n".join(lines)
+
+
+def render_text(report: DemoReport, *, summary: bool = False) -> str:
     """Render a compact, complete report for manual use."""
 
     totals = scenario_totals(report.results)
+    if report.mode == "sdk" and not summary:
+        return _render_sdk_detailed(report)
     if report.mode == "sdk":
         lines = [
             "DPP SDK offline demonstration",
@@ -189,6 +308,7 @@ def render_json(report: DemoReport) -> str:
     payload = asdict(report)
     if report.mode == "sdk":
         payload["schema_version"] = 2
+        payload["teaching_schema_version"] = 1
         payload["exit_outcome"] = "SUCCESS" if not has_required_failure(report) else "FAILURE"
     payload["scenario_totals"] = asdict(scenario_totals(report.results))
     return json.dumps(payload, default=str, indent=2, sort_keys=True)

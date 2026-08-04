@@ -9,6 +9,7 @@ from dpp_java_services_demo.reporting import (
     LegacyCompatibilityStatus,
     ScenarioResult,
     ScenarioStatus,
+    ScenarioTeaching,
     has_required_failure,
     render_json,
     render_text,
@@ -29,6 +30,17 @@ def _report(status: ScenarioStatus = ScenarioStatus.PASSED) -> DemoReport:
                 duration_seconds=0.125,
                 summary="Complete fixture passed",
                 details="typed tuple collections",
+                teaching=ScenarioTeaching(
+                    group="MODELS_AND_IDENTIFIERS",
+                    evidence_class="SDK_LOCAL",
+                    purpose="Construct a typed DPP.",
+                    input={"product_name": "Demo Chair"},
+                    operation={"public_api": "Dpp4Fun", "display": "Dpp4Fun(...)"},
+                    expected_behavior="The model is valid.",
+                    observed_result={"model_type": "Dpp4Fun"},
+                    explanation="The SDK creates a typed model.",
+                    why_it_matters="Consumers avoid raw JSON.",
+                ),
             ),
         ),
         summary="SDK capability demonstration completed",
@@ -46,13 +58,13 @@ def test_text_report_contains_required_scenario_fields_and_policy_status() -> No
     assert "SDK-01" in rendered
     assert "Complete construction" in rendered
     assert "SDK_LOCAL" in rendered
-    assert "PASSED" in rendered
-    assert "0.125" in rendered
-    assert "Complete fixture passed" in rendered
-    assert "typed tuple collections" in rendered
-    assert "DPP SDK offline demonstration" in rendered
-    assert "schema_version: 2" in rendered
-    assert "next_step:" in rendered
+    assert "Status: PASS" in rendered
+    assert "Purpose" in rendered
+    assert "Input" in rendered
+    assert "SDK operation" in rendered
+    assert "Observed result" in rendered
+    assert "DPP Python SDK demonstration" in rendered
+    assert "Next step:" in rendered
 
 
 def test_json_report_is_machine_readable_and_complete() -> None:
@@ -63,15 +75,10 @@ def test_json_report_is_machine_readable_and_complete() -> None:
     assert payload["run_id"] == "12345678-1234-5678-9234-567812345678"
     assert payload["legacy_status"] == "LEGACY_COMPATIBILITY_NOT_RUN"
     assert payload["sdk_version"] == "0.2.1"
-    assert result == {
-        "scenario_id": "SDK-01",
-        "name": "Complete construction",
-        "category": "SDK_LOCAL",
-        "status": "PASSED",
-        "duration_seconds": 0.125,
-        "summary": "Complete fixture passed",
-        "details": "typed tuple collections",
-    }
+    assert result["scenario_id"] == "SDK-01"
+    assert result["summary"] == "Complete fixture passed"
+    assert result["teaching"]["operation"]["public_api"] == "Dpp4Fun"
+    assert payload["teaching_schema_version"] == 1
 
 
 def test_required_failures_include_failed_and_not_implemented() -> None:

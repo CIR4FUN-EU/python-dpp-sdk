@@ -24,6 +24,7 @@ include = [
     "env",
     ".env.example",
     "README.md",
+    "OPERATIONS.md",
 ]
 
 [tool.pytest.ini_options]

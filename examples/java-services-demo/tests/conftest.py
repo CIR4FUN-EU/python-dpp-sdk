@@ -4,12 +4,22 @@ import pytest
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption(
-        "--run-java-services",
-        action="store_true",
-        default=False,
-        help="run tests against already-running Java repository and registry services",
-    )
+    """Register the live opt-in when nested tests run independently.
+
+    Root-plus-nested collection also loads the root conftest, which already owns
+    this option. Pytest rejects a duplicate registration in that one combined
+    invocation, so leave the existing compatible option in place.
+    """
+    try:
+        parser.addoption(
+            "--run-java-services",
+            action="store_true",
+            default=False,
+            help="run tests against already-running Java repository and registry services",
+        )
+    except ValueError as exc:
+        if "--run-java-services" not in str(exc):
+            raise
 
 
 @pytest.fixture(autouse=True)

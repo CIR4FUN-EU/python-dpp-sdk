@@ -22,6 +22,24 @@ def test_sdk_runner_executes_the_approved_capability_matrix() -> None:
     assert all(result.duration_seconds >= 0 for result in results)
 
 
+def test_sdk_runner_captures_complete_structured_teaching_evidence() -> None:
+    results = run_sdk_scenarios(UUID("12345678-1234-5678-9234-567812345678"))
+
+    for result in results:
+        teaching = result.teaching
+        assert teaching is not None
+        assert teaching.group
+        assert teaching.evidence_class
+        assert teaching.purpose
+        assert teaching.input
+        assert teaching.operation["public_api"]
+        assert teaching.operation["display"]
+        assert teaching.expected_behavior
+        assert teaching.observed_result
+        assert teaching.explanation
+        assert teaching.why_it_matters
+
+
 def test_expected_negative_contracts_are_reported_as_expected_errors() -> None:
     results = {
         result.scenario_id: result
