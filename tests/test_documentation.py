@@ -259,3 +259,45 @@ def test_documentation_corruption_checks_fail_on_temporary_inputs(tmp_path: Path
         _validate_root_command_convention(
             {"README.md": _read("README.md").replace("Run from:", "")}
         )
+
+
+def test_installation_and_demo_commands_keep_their_working_directory_contracts() -> None:
+    readme = _read("README.md")
+    usage = _read("docs/usage.md")
+    release = _read("RELEASING.md")
+    demo = _read("examples/java-services-demo/README.md")
+
+    for text in (readme, usage):
+        assert re.search(r"\*\*Run from:\*\* any\s+directory", text)
+        assert "directory-independent" in text
+    assert "**Run from:** the Python repository root" in readme
+    assert "**Run from:** the Python repository root" in release
+    assert "from `examples/java-services-demo`" not in demo
+    assert "dpp-java-services-demo-$PID" in demo
+    assert "dpp-java-services-demo-$$" in demo
+    assert "$repoUrl = if ($env:DPP_REPO_BASE_URL)" in demo
+    assert 'repo_url="${DPP_REPO_BASE_URL:-http://localhost:8080}"' in demo
+    assert "down --volumes --remove-orphans" in demo
+    assert "only the project created by this guide" in demo
+
+
+def test_command_guides_use_existing_relative_paths_and_separate_shells() -> None:
+    readme = _read("README.md")
+    release = _read("RELEASING.md")
+    demo = _read("examples/java-services-demo/README.md")
+
+    for relative in (
+        "examples/java-services-demo/compose.yaml",
+        "examples/java-services-demo/env/pinned.env",
+        "examples/java-services-demo/tests",
+    ):
+        assert (ROOT / relative).exists(), relative
+    assert "~~~powershell" not in demo
+    assert "```powershell" in readme
+    assert "```bash" in readme
+    assert "```powershell" in release
+    assert "```bash" in demo
+    assert 'python -m build --outdir "$build_root"' in release
+    assert "python -m twine check" in release
+    assert 'compose_file="$demo_dir/compose.yaml"' in demo
+    assert not re.search(r"[A-Za-z]:\\\\", readme + release + demo)

@@ -123,22 +123,27 @@ disposable `postgres:16` containers for each API. The public image references al
 the selected `env/*.env` profile. The database names, users, and passwords are Java demo-local
 defaults only; do not use this stack with production credentials or shared endpoints.
 
-The Java-compatible Compose file uses fixed container names. Before starting it, verify that no
-other Java-style demo stack is running, and always reset it with `down --volumes`.
+Compose derives container and volume names from the project name; it does not set fixed
+`container_name` values. Create a unique project name for each local run. Do not reuse a project
+you did not create. The teardown below removes only the project created by this guide.
 
 PowerShell, from the Python repository root:
 
 ```powershell
-$project = "dpp-java-services-demo"
+$project = "dpp-java-services-demo-$PID"
 $composeFile = (Resolve-Path .\examples\java-services-demo\compose.yaml).Path
 $envFile = (Resolve-Path .\examples\java-services-demo\env\pinned.env).Path
 $report = Join-Path (Resolve-Path .\examples\java-services-demo).Path "verification-report.json"
 $demoPython = (Resolve-Path .\.java-services-demo-venv\Scripts\python.exe).Path
 $sdkWheel = (Resolve-Path .\dist\dpp_sdk-0.2.1-py3-none-any.whl).Path
+$repoUrl = if ($env:DPP_REPO_BASE_URL) { $env:DPP_REPO_BASE_URL } else { "http://localhost:8080" }
+$registryUrl = if ($env:DPP_REGISTRY_BASE_URL) { $env:DPP_REGISTRY_BASE_URL } else { "http://localhost:8081" }
 
 docker compose -f $composeFile -p $project --env-file $envFile pull
 docker compose -f $composeFile -p $project --env-file $envFile up -d --wait --wait-timeout 120
 docker compose -f $composeFile -p $project --env-file $envFile ps --all
+Invoke-WebRequest "$repoUrl/health" | Select-Object -ExpandProperty StatusCode
+Invoke-WebRequest "$registryUrl/health" | Select-Object -ExpandProperty StatusCode
 
 Push-Location ([System.IO.Path]::GetTempPath())
 try {
@@ -156,17 +161,21 @@ is not supplying `dpp_sdk`.
 Linux/macOS, from the Python repository root:
 
 ```bash
-project="dpp-java-services-demo"
+project="dpp-java-services-demo-$$"
 demo_dir="$(pwd)/examples/java-services-demo"
 compose_file="$demo_dir/compose.yaml"
 env_file="$demo_dir/env/pinned.env"
 report="$demo_dir/verification-report.json"
 demo_python="$(pwd)/.java-services-demo-venv/bin/python"
 sdk_wheel="$(pwd)/dist/dpp_sdk-0.2.1-py3-none-any.whl"
+repo_url="${DPP_REPO_BASE_URL:-http://localhost:8080}"
+registry_url="${DPP_REGISTRY_BASE_URL:-http://localhost:8081}"
 
 docker compose -f "$compose_file" -p "$project" --env-file "$env_file" pull
 docker compose -f "$compose_file" -p "$project" --env-file "$env_file" up -d --wait --wait-timeout 120
 docker compose -f "$compose_file" -p "$project" --env-file "$env_file" ps --all
+curl --fail "$repo_url/health"
+curl --fail "$registry_url/health"
 
 outside="$(mktemp -d)"
 (cd "$outside" && "$demo_python" -I \
@@ -195,9 +204,44 @@ docker ps -a --filter "label=com.docker.compose.project=$project"
 docker volume ls --filter "label=com.docker.compose.project=$project"
 ```
 
+Run `down --volumes --remove-orphans` only for the project created by this guide. It deletes that
+project's disposable database volumes; it must never be aimed at a shared or pre-existing project.
+
 Compose image health starts the dependency chain, while the runner independently polls both
 public `/health` operations up to `DPP_STARTUP_TIMEOUT_SECONDS`. A supplied integration flag or
 live CLI mode fails when functional readiness is unavailable; it never silently passes.
+
+If Docker or Compose is unavailable, install/enable Docker Desktop or the Docker Engine before
+retrying. If `pull` fails, confirm GHCR network access and the selected profile. If a host port is
+occupied, apply the alternate-port variables below before `pull` and keep the chosen project name.
+If readiness fails, run the project-scoped `ps` and `logs` commands below before teardown.
+
+## Run service-backed modes
+
+After readiness succeeds, run one mode from the Python repository root. `services` exercises live
+repository/registry scenarios; `all` adds SDK scenarios; `verify` also writes the required image
+and installed-wheel evidence. A missing profile is reported as a configuration error; do not use
+live pytest until the stack is healthy and the explicit opt-in flag is present.
+
+PowerShell:
+
+```powershell
+& $demoPython -I -m dpp_java_services_demo services --env-file $envFile --json
+& $demoPython -I -m dpp_java_services_demo all --env-file $envFile --json
+& $demoPython -I -m dpp_java_services_demo verify --env-file $envFile `
+  --compose-project $project --sdk-wheel $sdkWheel --report-file $report
+.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo\tests --run-java-services
+```
+
+Linux/macOS:
+
+```bash
+"$demo_python" -I -m dpp_java_services_demo services --env-file "$env_file" --json
+"$demo_python" -I -m dpp_java_services_demo all --env-file "$env_file" --json
+"$demo_python" -I -m dpp_java_services_demo verify --env-file "$env_file" \
+  --compose-project "$project" --sdk-wheel "$sdk_wheel" --report-file "$report"
+.venv/bin/python -m pytest ./examples/java-services-demo/tests --run-java-services
+```
 
 ### View the running Java demo services
 

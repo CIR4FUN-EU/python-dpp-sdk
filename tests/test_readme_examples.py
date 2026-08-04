@@ -44,6 +44,9 @@ def test_readme_documents_current_model_and_client_contracts() -> None:
         "dpp-sdk==0.2.1",
         "dpp-sdk~=0.2.1",
         "Install this local checkout",
+        "Create the development environment",
+        'pip install -e ".[dev,release]"',
+        "must not be committed",
         "pip version\nselectors omit the `v`",
     ):
         assert required_text in readme

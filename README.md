@@ -47,8 +47,10 @@ the SDK-only demo checks.
 
 ## Install
 
-**Purpose:** install the published SDK for an application. **Run from:** the Python repository
-root. **Prerequisites:** Python 3.11 or newer on `PATH`.
+**Purpose:** install the published SDK for an application. **Run from:** any directory; these
+commands are directory-independent because pip downloads a named published distribution rather
+than reading this checkout. **Prerequisites:** Python 3.11 or newer on `PATH` and access to the
+selected package index.
 
 Choose the source deliberately:
 
@@ -96,7 +98,32 @@ python -m pip install "dpp-sdk~=0.2.1"
 ### Install this local checkout
 
 Use this only when you need the un-released source in this checkout, are contributing, or are
-reproducing a source-state issue. **Prerequisites:** the repository `.venv` development environment.
+reproducing a source-state issue. Create the repository-local `.venv` once when it is absent; it is
+local developer state and must not be committed.
+
+#### Create the development environment
+
+**Purpose:** create an isolated checkout environment with development and release tools.
+**Run from:** the Python repository root, `Dpp-SDK-python/dpp-python-sdk`.
+**Prerequisites:** Python 3.11 or newer on `PATH`.
+
+##### PowerShell
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,release]"
+```
+
+##### Linux/macOS
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install -e ".[dev,release]"
+```
+
+**Expected result:** `.venv` contains an isolated editable SDK install plus the configured test,
+lint, type-check, build, and package-check tools. **Cleanup:** remove `.venv` only when you no
+longer need this checkout environment.
 
 #### PowerShell
 
@@ -114,8 +141,36 @@ reproducing a source-state issue. **Prerequisites:** the repository `.venv` deve
 models. The separately installed `dpp-sdk-java-services-demo` package is reference/demo code, not
 a dependency that ordinary SDK users need.
 
-**Expected result:** `python -c "import dpp_sdk; print(dpp_sdk.__version__)"` imports the installed
-SDK. **Cleanup:** none.
+**Expected result:** the same interpreter imports the intended SDK:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import dpp_sdk; print(dpp_sdk.__version__)"
+```
+
+```bash
+.venv/bin/python -c "import dpp_sdk; print(dpp_sdk.__version__)"
+```
+
+**Cleanup:** none.
+
+## First use from this checkout
+
+All local commands in this section run from `Dpp-SDK-python/dpp-python-sdk`.
+
+1. Choose a published install above, or create `.venv` and install this checkout.
+2. Run the import probe above, then use the small SDK example below.
+3. Run the SDK-only demo after following its isolated-wheel setup:
+   `./.java-services-demo-venv/Scripts/python.exe -m dpp_java_services_demo sdk --json` on
+   PowerShell, or `./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk --json`
+   on Linux/macOS.
+4. Run SDK tests with the development interpreter; focused core, validation, client, and
+   documentation commands are owned by the [release guide](RELEASING.md).
+5. Only when you need live interoperability, follow the [Java-services demo guide]
+   (examples/java-services-demo/README.md) to start a uniquely named disposable project, run
+   `services`, `all`, or `verify`, inspect its report/logs, and tear down only that project.
+
+The demo guide owns its longer service commands and troubleshooting. Docker is never required for
+the installation, SDK example, or SDK-only demo.
 
 ## A small useful example
 

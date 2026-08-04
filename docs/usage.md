@@ -7,8 +7,9 @@ null semantics and the [validation guide](validation-guide.md) for the semantic-
 
 ## Installation
 
-**Purpose:** install the published SDK before following this walkthrough. **Run from:** the
-Python repository root. **Prerequisites:** Python 3.11 or newer on `PATH`.
+**Purpose:** install the published SDK before following this walkthrough. **Run from:** any
+directory; this is directory-independent because it installs a named published distribution.
+**Prerequisites:** Python 3.11 or newer on `PATH` and access to the selected package index.
 
 ### PowerShell
 
