@@ -109,13 +109,13 @@ owns installation, full validation, builds, archive inspection, and cleanup.
 ### PowerShell
 
 ```powershell
-python -m pytest tests/test_core_model.py tests/test_core_validation.py
+.\.venv\Scripts\python.exe -m pytest tests/test_core_model.py tests/test_core_validation.py
 ```
 
 ### Linux/macOS
 
 ```bash
-python -m pytest tests/test_core_model.py tests/test_core_validation.py
+.venv/bin/python -m pytest tests/test_core_model.py tests/test_core_validation.py
 ```
 
 **Expected result:** focused structural and semantic core tests pass. **Cleanup:** none.

@@ -5,6 +5,8 @@ This repository publishes the `dpp-sdk` Python package from version tags matchin
 
 ## Before tagging
 
+**Run from:** repository root. **Prerequisites:** the checkout development environment.
+
 1. Confirm `src/dpp_sdk/__init__.py`, `CHANGELOG.md`, and the intended tag use the same version.
 2. Run the configured validation:
 

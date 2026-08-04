@@ -47,8 +47,20 @@ the SDK-only demo checks.
 
 ## Install
 
-**Purpose:** install the published SDK for an application. **Run from:** any directory.
-**Prerequisites:** Python 3.11 or newer and access to the selected Python package index.
+**Purpose:** install the published SDK for an application. **Run from:** the Python repository
+root. **Prerequisites:** Python 3.11 or newer on `PATH`.
+
+Choose the source deliberately:
+
+| Need | Install choice | Why |
+| --- | --- | --- |
+| ordinary application use | latest published `dpp-sdk` | uses the newest released distribution; no checkout is required |
+| repeatable deployment or compatibility testing | an exact published version such as `dpp-sdk==0.2.1` | prevents a later release from changing the installed SDK |
+| updates within one released minor line | a compatible version range such as `dpp-sdk~=0.2.1` | accepts compatible `0.2.x` fixes but not `0.3.0` |
+| contribution, an unreleased fix, or reproducing checkout state | install this local checkout | uses the source currently in this repository; it is not a substitute for a released package in production |
+
+Release tags are named `v<major>.<minor>.<patch>` (for example, `v0.2.1`), while pip version
+selectors omit the `v` (for example, `dpp-sdk==0.2.1`).
 
 ### PowerShell
 
@@ -60,6 +72,42 @@ python -m pip install dpp-sdk
 
 ```bash
 python -m pip install dpp-sdk
+```
+
+### Install a selected published release
+
+Use an exact version when deployment must be reproducible. Use `~=` only when your application
+has tested the compatible release line and can accept later patch releases.
+
+#### PowerShell
+
+```powershell
+python -m pip install "dpp-sdk==0.2.1"
+python -m pip install "dpp-sdk~=0.2.1"
+```
+
+#### Linux/macOS
+
+```bash
+python -m pip install "dpp-sdk==0.2.1"
+python -m pip install "dpp-sdk~=0.2.1"
+```
+
+### Install this local checkout
+
+Use this only when you need the un-released source in this checkout, are contributing, or are
+reproducing a source-state issue. **Prerequisites:** the repository `.venv` development environment.
+
+#### PowerShell
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install .
+```
+
+#### Linux/macOS
+
+```bash
+.venv/bin/python -m pip install .
 ```
 
 `dpp-sdk` is the single package that contains the core, DPP4Fun, clients, and public payload

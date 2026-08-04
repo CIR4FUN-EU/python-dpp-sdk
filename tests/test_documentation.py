@@ -88,6 +88,16 @@ DIAGRAM_STEMS = (
     "python-core-model",
     "python-dpp4fun-model",
 )
+COMMAND_DOCUMENTS = (
+    "README.md",
+    "RELEASING.md",
+    "docs/usage.md",
+    "docs/architecture/diagram-evidence.md",
+    "src/dpp_sdk/core/README.md",
+    "src/dpp_sdk/dpp4fun/README.md",
+    "src/dpp_sdk/clients/README.md",
+    "examples/java-services-demo/README.md",
+)
 
 
 def _read(relative: str) -> str:
@@ -187,6 +197,22 @@ def _validate_python_blocks(text: str) -> None:
                 assert importlib.util.find_spec(module) is not None, module
 
 
+def _validate_root_command_convention(overrides: dict[str, str] | None = None) -> None:
+    overrides = overrides or {}
+    for relative in COMMAND_DOCUMENTS:
+        text = overrides.get(relative, _read(relative))
+        assert re.search(r"Run from:.*?root", text, re.DOTALL), (
+            f"{relative} does not state repository root as its command working directory"
+        )
+    demo = overrides.get(
+        "examples/java-services-demo/README.md",
+        _read("examples/java-services-demo/README.md"),
+    )
+    assert "from `examples/java-services-demo`" not in demo
+    assert "docker compose -f $composeFile" in demo
+    assert 'docker compose -f "$compose_file"' in demo
+
+
 def test_documentation_structure_links_examples_payloads_and_diagrams() -> None:
     for relative in MARKDOWN_FILES:
         text = _read(relative)
@@ -201,6 +227,7 @@ def test_documentation_structure_links_examples_payloads_and_diagrams() -> None:
             assert heading in text, f"{relative} missing {heading}"
     _validate_client_operations(_read("src/dpp_sdk/clients/README.md"))
     _validate_diagram_pairs(ROOT / "docs/architecture")
+    _validate_root_command_convention()
 
 
 def test_documentation_corruption_checks_fail_on_temporary_inputs(tmp_path: Path) -> None:
@@ -228,3 +255,7 @@ def test_documentation_corruption_checks_fail_on_temporary_inputs(tmp_path: Path
         _validate_diagram_pairs(tmp_path)
     with pytest.raises(AssertionError):
         assert not re.search(r"[A-Za-z]:\\\\", "C:\\\\absolute\\\\path")
+    with pytest.raises(AssertionError):
+        _validate_root_command_convention(
+            {"README.md": _read("README.md").replace("Run from:", "")}
+        )

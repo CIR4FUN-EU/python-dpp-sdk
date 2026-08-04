@@ -299,13 +299,13 @@ installation, full validation, builds, archive inspection, and cleanup.
 ### PowerShell
 
 ```powershell
-python -m pytest tests/test_clients.py tests/test_end_to_end.py
+.\.venv\Scripts\python.exe -m pytest tests/test_clients.py tests/test_end_to_end.py
 ```
 
 ### Linux/macOS
 
 ```bash
-python -m pytest tests/test_clients.py tests/test_end_to_end.py
+.venv/bin/python -m pytest tests/test_clients.py tests/test_end_to_end.py
 ```
 
 **Expected result:** controlled client and end-to-end SDK tests pass without a live service.

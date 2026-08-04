@@ -109,13 +109,13 @@ inspection, and cleanup.
 ### PowerShell
 
 ```powershell
-python -m pytest tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py tests/test_end_to_end.py
+.\.venv\Scripts\python.exe -m pytest tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py tests/test_end_to_end.py
 ```
 
 ### Linux/macOS
 
 ```bash
-python -m pytest tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py tests/test_end_to_end.py
+.venv/bin/python -m pytest tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py tests/test_end_to_end.py
 ```
 
 **Expected result:** focused model, validation, and transport tests pass. **Cleanup:** none.

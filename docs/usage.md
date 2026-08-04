@@ -7,8 +7,8 @@ null semantics and the [validation guide](validation-guide.md) for the semantic-
 
 ## Installation
 
-**Purpose:** install the published SDK before following this walkthrough. **Run from:** any
-directory. **Prerequisites:** Python 3.11 or newer.
+**Purpose:** install the published SDK before following this walkthrough. **Run from:** the
+Python repository root. **Prerequisites:** Python 3.11 or newer on `PATH`.
 
 ### PowerShell
 
@@ -24,9 +24,12 @@ python -m pip install dpp-sdk
 python -m pip install dpp-sdk
 ```
 
-For a local checkout, use the repository's development environment and run its configured checks
-from the repository root through the [release guide](../RELEASING.md). **Expected result:** an
-installed `dpp_sdk` import. **Cleanup:** none. The
+For an exact published version, a compatible release line, or this local checkout, use the
+[root installation guide](../README.md#install). It explains when a published pip install is the
+right choice and when local source installation is appropriate. For a local checkout, use the
+repository's development environment and run its configured checks from the repository root
+through the [release guide](../RELEASING.md). **Expected result:** an installed `dpp_sdk` import.
+**Cleanup:** none. The
 [Java-services demo](../examples/java-services-demo/README.md) has separate installation
 instructions because it is a separate, unpublished consumer package.
 

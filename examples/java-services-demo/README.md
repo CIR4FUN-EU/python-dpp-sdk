@@ -48,18 +48,20 @@ Choose the mode first:
 | run the complete `verify` check | the above plus Docker Buildx for the fresh image-digest lookup |
 
 The root [README](../../README.md#prerequisites) lists the same split. Docker, Compose, Buildx,
-and GHCR access are not prerequisites for ordinary SDK use.
+and GHCR access are not prerequisites for ordinary SDK use. **Run from:** the Python repository
+root. Every command in this guide uses a path relative to that root.
 
 Build both projects from the Python repository root, then install their wheels into a clean
-environment. This deliberately avoids an editable install or a root `src` path.
+environment. **Prerequisites:** the root `.venv` development environment contains the configured
+build tool. This deliberately avoids an editable install or a root `src` path.
 
 PowerShell:
 
 ```powershell
-python -m build
-python -m build .\examples\java-services-demo `
+.\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe -m build .\examples\java-services-demo `
   --outdir .\examples\java-services-demo\dist
-python -m venv .\.java-services-demo-venv
+.\.venv\Scripts\python.exe -m venv .\.java-services-demo-venv
 .\.java-services-demo-venv\Scripts\python.exe -m pip install `
   .\dist\dpp_sdk-0.2.1-py3-none-any.whl `
   .\examples\java-services-demo\dist\dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
@@ -68,10 +70,10 @@ python -m venv .\.java-services-demo-venv
 Linux/macOS:
 
 ```bash
-python -m build
-python -m build ./examples/java-services-demo \
+.venv/bin/python -m build
+.venv/bin/python -m build ./examples/java-services-demo \
   --outdir ./examples/java-services-demo/dist
-python -m venv ./.java-services-demo-venv
+.venv/bin/python -m venv ./.java-services-demo-venv
 ./.java-services-demo-venv/bin/python -m pip install \
   ./dist/dpp_sdk-0.2.1-py3-none-any.whl \
   ./examples/java-services-demo/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
@@ -107,12 +109,12 @@ SDK-only use:
 ./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk --json
 ```
 
-These `sdk` commands work from any directory after installation. They do not read an environment
-profile or require Docker, Compose, service URLs, or image references. The `services`, `all`, and
-`verify` modes are service-dependent and require either `--env-file` or a discoverable local demo
-profile. For those modes, values resolve in this order: process environment overrides the selected
-environment profile, and the profile supplies the documented defaults. A missing service profile
-is reported as a mode-specific configuration error.
+These `sdk` commands do not read an environment profile or require Docker, Compose, service URLs,
+or image references. The `services`, `all`, and `verify` modes are service-dependent and require
+either `--env-file` or a discoverable local demo profile. For those modes, values resolve in this
+order: process environment overrides the selected environment profile, and the profile supplies
+the documented defaults. A missing service profile is reported as a mode-specific configuration
+error.
 
 ## Pull, start, verify, capture, and stop
 
@@ -124,18 +126,19 @@ defaults only; do not use this stack with production credentials or shared endpo
 The Java-compatible Compose file uses fixed container names. Before starting it, verify that no
 other Java-style demo stack is running, and always reset it with `down --volumes`.
 
-PowerShell, from `examples/java-services-demo`:
+PowerShell, from the Python repository root:
 
 ```powershell
 $project = "dpp-java-services-demo"
-$envFile = (Resolve-Path .\env\pinned.env).Path
-$report = (Join-Path (Get-Location) "verification-report.json")
-$demoPython = (Resolve-Path ..\..\.java-services-demo-venv\Scripts\python.exe).Path
-$sdkWheel = (Resolve-Path ..\..\dist\dpp_sdk-0.2.1-py3-none-any.whl).Path
+$composeFile = (Resolve-Path .\examples\java-services-demo\compose.yaml).Path
+$envFile = (Resolve-Path .\examples\java-services-demo\env\pinned.env).Path
+$report = Join-Path (Resolve-Path .\examples\java-services-demo).Path "verification-report.json"
+$demoPython = (Resolve-Path .\.java-services-demo-venv\Scripts\python.exe).Path
+$sdkWheel = (Resolve-Path .\dist\dpp_sdk-0.2.1-py3-none-any.whl).Path
 
-docker compose -p $project --env-file $envFile pull
-docker compose -p $project --env-file $envFile up -d --wait --wait-timeout 120
-docker compose -p $project --env-file $envFile ps --all
+docker compose -f $composeFile -p $project --env-file $envFile pull
+docker compose -f $composeFile -p $project --env-file $envFile up -d --wait --wait-timeout 120
+docker compose -f $composeFile -p $project --env-file $envFile ps --all
 
 Push-Location ([System.IO.Path]::GetTempPath())
 try {
@@ -150,18 +153,20 @@ try {
 Running the resolved interpreter from a temporary directory with `-I` proves the root checkout
 is not supplying `dpp_sdk`.
 
-Linux/macOS, from `examples/java-services-demo`:
+Linux/macOS, from the Python repository root:
 
 ```bash
 project="dpp-java-services-demo"
-env_file="$(pwd)/env/pinned.env"
-report="$(pwd)/verification-report.json"
-demo_python="$(cd ../.. && pwd)/.java-services-demo-venv/bin/python"
-sdk_wheel="$(cd ../.. && pwd)/dist/dpp_sdk-0.2.1-py3-none-any.whl"
+demo_dir="$(pwd)/examples/java-services-demo"
+compose_file="$demo_dir/compose.yaml"
+env_file="$demo_dir/env/pinned.env"
+report="$demo_dir/verification-report.json"
+demo_python="$(pwd)/.java-services-demo-venv/bin/python"
+sdk_wheel="$(pwd)/dist/dpp_sdk-0.2.1-py3-none-any.whl"
 
-docker compose -p "$project" --env-file "$env_file" pull
-docker compose -p "$project" --env-file "$env_file" up -d --wait --wait-timeout 120
-docker compose -p "$project" --env-file "$env_file" ps --all
+docker compose -f "$compose_file" -p "$project" --env-file "$env_file" pull
+docker compose -f "$compose_file" -p "$project" --env-file "$env_file" up -d --wait --wait-timeout 120
+docker compose -f "$compose_file" -p "$project" --env-file "$env_file" ps --all
 
 outside="$(mktemp -d)"
 (cd "$outside" && "$demo_python" -I \
@@ -173,19 +178,19 @@ rmdir "$outside"
 On failure, preserve service state and logs before teardown:
 
 ```powershell
-docker compose -p $project --env-file $envFile ps --all
-docker compose -p $project --env-file $envFile logs --no-color --timestamps
-docker compose -p $project --env-file $envFile images --format json
-docker compose -p $project --env-file $envFile down --volumes --remove-orphans
+docker compose -f $composeFile -p $project --env-file $envFile ps --all
+docker compose -f $composeFile -p $project --env-file $envFile logs --no-color --timestamps
+docker compose -f $composeFile -p $project --env-file $envFile images --format json
+docker compose -f $composeFile -p $project --env-file $envFile down --volumes --remove-orphans
 docker ps -a --filter "label=com.docker.compose.project=$project"
 docker volume ls --filter "label=com.docker.compose.project=$project"
 ```
 
 ```bash
-docker compose -p "$project" --env-file "$env_file" ps --all
-docker compose -p "$project" --env-file "$env_file" logs --no-color --timestamps
-docker compose -p "$project" --env-file "$env_file" images --format json
-docker compose -p "$project" --env-file "$env_file" down --volumes --remove-orphans
+docker compose -f "$compose_file" -p "$project" --env-file "$env_file" ps --all
+docker compose -f "$compose_file" -p "$project" --env-file "$env_file" logs --no-color --timestamps
+docker compose -f "$compose_file" -p "$project" --env-file "$env_file" images --format json
+docker compose -f "$compose_file" -p "$project" --env-file "$env_file" down --volumes --remove-orphans
 docker ps -a --filter "label=com.docker.compose.project=$project"
 docker volume ls --filter "label=com.docker.compose.project=$project"
 ```
@@ -242,37 +247,39 @@ workflow performs that conditional second run automatically.
 
 Optional legacy command:
 
-Run this from `examples/java-services-demo` after the maintained setup has defined
+Run this from the Python repository root after the maintained setup has defined
 `$project`/`$sdkWheel` or `project`/`sdk_wheel` and installed the demo wheel. It is optional and
 never a release gate.
 
 ```powershell
-& $demoPython -I -m dpp_java_services_demo verify --env-file env\0.4.0.env --legacy `
+& $demoPython -I -m dpp_java_services_demo verify `
+  --env-file .\examples\java-services-demo\env\0.4.0.env --legacy `
   --compose-project $project --sdk-wheel $sdkWheel `
-  --report-file legacy-verification-report.json
+  --report-file .\examples\java-services-demo\legacy-verification-report.json
 ```
 
 ```bash
-"$demo_python" -I -m dpp_java_services_demo verify --env-file env/0.4.0.env --legacy \
+"$demo_python" -I -m dpp_java_services_demo verify \
+  --env-file ./examples/java-services-demo/env/0.4.0.env --legacy \
   --compose-project "$project" --sdk-wheel "$sdk_wheel" \
-  --report-file legacy-verification-report.json
+  --report-file ./examples/java-services-demo/legacy-verification-report.json
 ```
 
 Version 0.4.0 is never part of the required pull-request or release gate.
 
 ## Test boundary and retained reports
 
-Ordinary root `pytest` does not collect this nested project or require Docker. From the nested
-directory:
+Ordinary root `pytest` does not collect this nested project or require Docker. Run the nested
+project explicitly from the Python repository root:
 
 ```powershell
-python -m pytest
-python -m pytest --run-java-services
+.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo
+.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo --run-java-services
 ```
 
 ```bash
-python -m pytest
-python -m pytest --run-java-services
+.venv/bin/python -m pytest ./examples/java-services-demo
+.venv/bin/python -m pytest ./examples/java-services-demo --run-java-services
 ```
 
 The first command precisely skips the two marked live tests. The second requires already-running

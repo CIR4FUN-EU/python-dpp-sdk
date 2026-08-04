@@ -41,6 +41,10 @@ def test_readme_documents_current_model_and_client_contracts() -> None:
         "complete generic implementation of RFC 7396 JSON Merge Patch",
         "complete implementation of RFC 9535 JSONPath",
         "does not record lifecycle events",
+        "dpp-sdk==0.2.1",
+        "dpp-sdk~=0.2.1",
+        "Install this local checkout",
+        "pip version\nselectors omit the `v`",
     ):
         assert required_text in readme
     assert 'dppApiEndpoint="https://repo.example.com"' in readme
