@@ -83,28 +83,25 @@ def test_readme_registry_example_emits_canonical_names_without_network() -> None
     assert UpdateDataElementRequest(payload=None).payload is None
 
 
-def test_module_readmes_have_single_owner_links_and_root_build_commands() -> None:
+def test_module_readmes_link_to_the_single_release_owner_and_keep_focused_checks() -> None:
     required_text = {
         "core": (
             "# DPP SDK core module",
             "validate_dpp_core()",
-            "python -m build",
+            "[release guide](../../../RELEASING.md)",
             "tests/test_core_model.py tests/test_core_validation.py",
-            "not separately built or",
         ),
         "dpp4fun": (
             "# DPP SDK DPP4Fun module",
             "Dpp4FunJsonCodec",
-            "python -m build",
+            "[release guide](../../../RELEASING.md)",
             "tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py",
-            "not a separately buildable or",
         ),
         "clients": (
             "# DPP SDK clients module",
             "DppRepoClient[T]",
-            "python -m build",
+            "[RELEASING.md](../../../RELEASING.md)",
             "tests/test_clients.py tests/test_end_to_end.py",
-            "not a separately buildable or",
         ),
     }
 
@@ -112,3 +109,4 @@ def test_module_readmes_have_single_owner_links_and_root_build_commands() -> Non
         content = MODULE_READMES[module].read_text(encoding="utf-8")
         for text in expected:
             assert text in content
+        assert "python -m build" not in content

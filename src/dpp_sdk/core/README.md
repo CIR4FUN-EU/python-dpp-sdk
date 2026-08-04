@@ -12,16 +12,10 @@ registry services, persistence, or lifecycle-event storage.
 
 ## Architecture at a glance
 
-```mermaid
-flowchart TB
-    IDENTITY["Passport identity and nameplate"] --> CORE["DppCore"]
-    DETAILS["Organisation and contact details"] --> CORE
-    DOCS["Optional documentation"] --> CORE
-    CORE --> DPP["Dpp wrapper"]
-```
+![Core model boundary](../../../docs/architecture/python-core-model.svg)
 
-*Diagram: DppCore brings together the reusable passport information. `Dpp` is the small outer
-wrapper around it.*
+*Diagram: core owns reusable frozen models, explicit core validation, and shared errors. DPP4Fun
+uses this boundary without creating a reverse dependency.*
 
 All public models are frozen Pydantic models. Construction checks the shape of the data; call
 `validate_dpp_core()` when you want to check the business rules as well.
@@ -40,6 +34,10 @@ All public models are frozen Pydantic models. Construction checks the shape of t
 
 The stable identifiers are exposed by a concrete `Dpp` aggregate: `dpp_id` is the string form of
 `uniqueProductIdentifier`; `product_id` is `gtinCode`.
+
+For the canonical field/default/null table, use the repository [model guide](../../../docs/model-guide.md).
+For semantic validator order, null behavior, and error paths, use the [validation-rule reference]
+(../../../docs/validation-rules.md).
 
 ## Practical usage
 
@@ -104,26 +102,23 @@ and codec rules, see the [DPP4Fun module](../dpp4fun/README.md).
 
 ## Build and test locally
 
-These modules are components of the single `dpp-sdk` distribution; they are not separately built or
-published packages. Run commands from the repository root.
+**Purpose:** run focused core model/validator checks. **Run from:** repository root.
+**Prerequisites:** the checkout development environment. The [release guide](../../../RELEASING.md)
+owns installation, full validation, builds, archive inspection, and cleanup.
 
-PowerShell:
+### PowerShell
 
 ```powershell
-python -m pip install -e ".[dev,release]"
-python -m build
 python -m pytest tests/test_core_model.py tests/test_core_validation.py
 ```
 
-Linux/macOS:
+### Linux/macOS
 
 ```bash
-python -m pip install -e ".[dev,release]"
-python -m build
 python -m pytest tests/test_core_model.py tests/test_core_validation.py
 ```
 
-`python -m build` builds the complete `dpp-sdk` distribution, including all three Python modules.
+**Expected result:** focused structural and semantic core tests pass. **Cleanup:** none.
 
 ## Boundaries and limitations
 

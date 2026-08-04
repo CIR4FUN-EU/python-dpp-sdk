@@ -1,0 +1,6 @@
+flowchart LR
+  App["Python application"] --> Core["dpp_sdk.core"]
+  Core --> Furniture["dpp_sdk.dpp4fun"]
+  App --> Clients["dpp_sdk.clients"]
+  Clients --> Api["Public DPP APIs"]
+  Demo["Optional Java-services demo"] -. installed SDK .-> Clients

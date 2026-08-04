@@ -11,19 +11,10 @@ or a standalone reusable-core JSON codec.
 
 ## Architecture at a glance
 
-```mermaid
-flowchart TB
-    DPP["DPP4Fun furniture passport"]
-    CORE["Core passport"] --> DPP
-    CLASSIFICATION["Product category"] --> DPP
-    CHARACTERISTICS["Product characteristics"] --> DPP
-    BOM["Optional materials, components, and parts"] --> DPP
-    DPP --> CHECK["Check the passport"]
-    CHECK --> JSON["Convert to or from JSON"]
-```
+![DPP4Fun aggregate boundary](../../../docs/architecture/python-dpp4fun-model.svg)
 
-*Diagram: a DPP4Fun passport combines a core passport with furniture details. Check it before use,
-then convert it to or from JSON when needed.*
+*Diagram: a DPP4Fun passport combines a core passport with furniture details and an optional Bill
+of Materials. Validation is explicit; JSON transport is a separate flat/nested mapping boundary.*
 
 The models are frozen Pydantic models. Contracted collections are immutable tuples in memory and
 JSON arrays on the wire.
@@ -39,6 +30,11 @@ JSON arrays on the wire.
 | Explicit semantic checks | `validate_dpp4fun()` |
 
 `Dpp4Fun` inherits the core identifier accessors: `dpp_id` and `product_id`.
+
+The repository [model guide](../../../docs/model-guide.md) owns the complete DPP4Fun and Bill of
+Materials field/default/null tables. The [validation guide](../../../docs/validation-guide.md) and
+[validation-rule reference](../../../docs/validation-rules.md) own the explicit validation and
+codec failure boundary.
 
 ## Practical usage
 
@@ -105,27 +101,24 @@ validation raises `DppValidationError`, and JSON normalization or model mapping 
 
 ## Build and test locally
 
-This module is part of the single `dpp-sdk` distribution; it is not a separately buildable or
-published package. Run commands from the repository root.
+**Purpose:** run focused furniture-model, validation, and codec checks. **Run from:** repository
+root. **Prerequisites:** the checkout development environment. The
+[release guide](../../../RELEASING.md) owns installation, full validation, builds, archive
+inspection, and cleanup.
 
-PowerShell:
+### PowerShell
 
 ```powershell
-python -m pip install -e ".[dev,release]"
-python -m build
 python -m pytest tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py tests/test_end_to_end.py
 ```
 
-Linux/macOS:
+### Linux/macOS
 
 ```bash
-python -m pip install -e ".[dev,release]"
-python -m build
 python -m pytest tests/test_dpp4fun_validation.py tests/test_transport_roundtrip.py tests/test_end_to_end.py
 ```
 
-`python -m build` produces the complete SDK archive; the focused tests isolate this module's model,
-validation, and codec behavior.
+**Expected result:** focused model, validation, and transport tests pass. **Cleanup:** none.
 
 ## Boundaries and limitations
 

@@ -1,0 +1,7 @@
+flowchart TB
+  Core["dpp_sdk.core"] --> Dpp["Dpp4Fun aggregate"]
+  Classification["Product classification"] --> Dpp
+  Characteristics["Characteristics"] --> Dpp
+  Bom["Optional Bill of Materials"] --> Dpp
+  Dpp --> Validation["Explicit furniture validation"]
+  Dpp --> Transport["Flat/nested JSON transport"]

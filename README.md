@@ -17,28 +17,16 @@ Choose the smallest part that matches your job:
 | work with furniture passports | [DPP4Fun module](src/dpp_sdk/dpp4fun/README.md) |
 | call a repository or registry API | [Clients module](src/dpp_sdk/clients/README.md) |
 | see a complete consumer walkthrough | [SDK usage](docs/usage.md) |
+| understand package boundaries | [SDK overview](docs/overview.md) |
+| look up model fields and JSON/null semantics | [Model guide](docs/model-guide.md) |
+| look up semantic validation rules | [Validation rules](docs/validation-rules.md) |
 | try disposable Java services locally | [Java-services demo](examples/java-services-demo/README.md) |
 | prepare a package release | [Release guide](RELEASING.md) |
 | review changes or licensing | [Changelog](CHANGELOG.md) · [License](LICENSE) |
 
 ## Architecture at a glance
 
-```mermaid
-flowchart LR
-    APP["Your Python application"]
-    CORE["Core models"]
-    FURNITURE["DPP4Fun models"]
-    CLIENTS["Optional HTTP clients"]
-    APIS["Public DPP APIs"]
-    DEMO["Separate Java-services demo"]
-
-    APP --> CORE
-    CORE --> FURNITURE
-    APP --> FURNITURE
-    APP --> CLIENTS
-    CLIENTS --> APIS
-    DEMO -. uses the installed SDK .-> CLIENTS
-```
+![Python SDK architecture](docs/architecture/python-sdk-overview.svg)
 
 *Diagram: your application can use core models directly or through DPP4Fun. It can also use the
 generic HTTP clients; the separate demo uses those same public clients against disposable Java
@@ -59,13 +47,16 @@ the SDK-only demo checks.
 
 ## Install
 
-PowerShell:
+**Purpose:** install the published SDK for an application. **Run from:** any directory.
+**Prerequisites:** Python 3.11 or newer and access to the selected Python package index.
+
+### PowerShell
 
 ```powershell
 python -m pip install dpp-sdk
 ```
 
-Linux/macOS:
+### Linux/macOS
 
 ```bash
 python -m pip install dpp-sdk
@@ -74,6 +65,9 @@ python -m pip install dpp-sdk
 `dpp-sdk` is the single package that contains the core, DPP4Fun, clients, and public payload
 models. The separately installed `dpp-sdk-java-services-demo` package is reference/demo code, not
 a dependency that ordinary SDK users need.
+
+**Expected result:** `python -c "import dpp_sdk; print(dpp_sdk.__version__)"` imports the installed
+SDK. **Cleanup:** none.
 
 ## A small useful example
 
@@ -173,3 +167,13 @@ When that optional stack is running, open `http://localhost:8080/` or
 `http://localhost:8081/` in a browser for the Java service Swagger UI. Use `/health` for a simple
 health check and `/v3/api-docs` for the service OpenAPI JSON. These are Java demo service endpoints,
 not endpoints provided by the Python package.
+
+## Documentation and next steps
+
+For a first integration, follow the [SDK usage guide](docs/usage.md). Use the [SDK overview]
+(docs/overview.md) to understand package boundaries, the [model guide](docs/model-guide.md) for
+field/default/null behavior, the [validation guide](docs/validation-guide.md) and
+[validation-rule reference](docs/validation-rules.md) for validation and codec behavior, and the
+[clients guide](src/dpp_sdk/clients/README.md) for every public HTTP operation and payload. The
+[release guide](RELEASING.md) owns development and release validation; the separate
+[Java-services demo](examples/java-services-demo/README.md) owns its optional service lifecycle.

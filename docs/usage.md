@@ -1,8 +1,16 @@
 # SDK usage
 
+## Purpose and scope
+
+This is the end-to-end consumer walkthrough. Use the [model guide](model-guide.md) for field and
+null semantics and the [validation guide](validation-guide.md) for the semantic-rule boundary.
+
 ## Installation
 
-Install the published SDK into a Python 3.11+ environment:
+**Purpose:** install the published SDK before following this walkthrough. **Run from:** any
+directory. **Prerequisites:** Python 3.11 or newer.
+
+### PowerShell
 
 PowerShell:
 
@@ -10,15 +18,17 @@ PowerShell:
 python -m pip install dpp-sdk
 ```
 
-Linux/macOS:
+### Linux/macOS
 
 ```bash
 python -m pip install dpp-sdk
 ```
 
 For a local checkout, use the repository's development environment and run its configured checks
-from the repository root. The [Java-services demo](../examples/java-services-demo/README.md) has
-separate installation instructions because it is a separate, unpublished consumer package.
+from the repository root through the [release guide](../RELEASING.md). **Expected result:** an
+installed `dpp_sdk` import. **Cleanup:** none. The
+[Java-services demo](../examples/java-services-demo/README.md) has separate installation
+instructions because it is a separate, unpublished consumer package.
 
 ## Imports
 
