@@ -313,6 +313,30 @@ Version 0.4.0 is never part of the required pull-request or release gate.
 
 ## Test boundary and retained reports
 
+## Validate the demo
+
+Run every command from `Dpp-SDK-python/dpp-python-sdk`. Ordinary tests and collection do not
+contact Docker or Java services; live tests require a separately created, healthy project and the
+explicit opt-in flag.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo --collect-only
+.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo
+.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo --run-java-services
+.\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe -m build .\examples\java-services-demo --outdir .\examples\java-services-demo\dist
+.\.venv\Scripts\python.exe -m twine check dist\* .\examples\java-services-demo\dist\*
+docker compose -f .\examples\java-services-demo\compose.yaml --env-file .\examples\java-services-demo\env\pinned.env config --quiet
+```
+
+For installed-wheel proof, use the isolated-wheel setup above, then run `sdk --json` from a
+temporary directory with `-I`. Docker is required only for Compose, live tests, `services`, `all`,
+and `verify`; use logs and project-scoped teardown from the lifecycle section after a live run.
+
+`REG-09` (registry read-back) and `REG-10` (registry cleanup) are explicitly unsupported public
+operations: their Java routes are internal helpers and the Python SDK intentionally exposes no
+client methods for them.
+
 Ordinary root `pytest` does not collect this nested project or require Docker. Run the nested
 project explicitly from the Python repository root:
 

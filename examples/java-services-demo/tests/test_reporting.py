@@ -50,7 +50,9 @@ def test_text_report_contains_required_scenario_fields_and_policy_status() -> No
     assert "0.125" in rendered
     assert "Complete fixture passed" in rendered
     assert "typed tuple collections" in rendered
-    assert "LEGACY_COMPATIBILITY_NOT_RUN" in rendered
+    assert "DPP SDK offline demonstration" in rendered
+    assert "schema_version: 2" in rendered
+    assert "next_step:" in rendered
 
 
 def test_json_report_is_machine_readable_and_complete() -> None:
