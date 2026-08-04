@@ -36,6 +36,7 @@ from dpp_sdk.clients import (
     DppRegistryClient,
     DppRepoClient,
     DppValidationClientError,
+    RegisterDppRequest,
 )
 from pydantic import ValidationError
 
@@ -64,6 +65,7 @@ class _Scenario(NamedTuple):
     name: str
     category: str
     run: Callable[[_ScenarioContext], _Outcome]
+    expected_error: bool = False
 
 
 def _expect(
@@ -410,22 +412,47 @@ def _sdk_15(_context: _ScenarioContext) -> _Outcome:
     )
 
 
+def _sdk_16(context: _ScenarioContext) -> _Outcome:
+    malformed = json.loads(to_json(context.complete))
+    malformed["classification"] = {}
+    error = _expect(DppMappingError, lambda: from_json(json.dumps(malformed)))
+    assert error.__cause__ is not None
+    return _Outcome(
+        "Invalid codec input preserves its mapping cause", type(error.__cause__).__name__
+    )
+
+
+def _sdk_17(_context: _ScenarioContext) -> _Outcome:
+    request = RegisterDppRequest(
+        productIdentifier="GTIN-0001",
+        dppIdentifier="DPP-1",
+        operatorIdentifier="operator-1",
+        repoUrl="https://repo.example.com",
+    )
+    assert request.model_dump()["dppApiEndpoint"] == "https://repo.example.com"
+    return _Outcome(
+        "Registry request aliases emit canonical public JSON", "canonical dppApiEndpoint"
+    )
+
+
 SCENARIOS: list[_Scenario] = [
     _Scenario("SDK-01", "Complete model construction", "SDK_LOCAL", _sdk_01),
     _Scenario("SDK-02", "Minimal model construction", "SDK_LOCAL", _sdk_02),
     _Scenario("SDK-03", "Identifier extraction", "SDK_LOCAL", _sdk_03),
-    _Scenario("SDK-04", "Core semantic validation", "SDK_LOCAL", _sdk_04),
-    _Scenario("SDK-05", "Aggregate semantic validation", "SDK_LOCAL", _sdk_05),
+    _Scenario("SDK-04", "Core semantic validation", "SDK_LOCAL", _sdk_04, True),
+    _Scenario("SDK-05", "Aggregate semantic validation", "SDK_LOCAL", _sdk_05, True),
     _Scenario("SDK-06", "Codec and semantic round trip", "SDK_LOCAL", _sdk_06),
     _Scenario("SDK-07", "Valid immutable updates", "SDK_LOCAL", _sdk_07),
-    _Scenario("SDK-08", "Rejected immutable updates", "SDK_LOCAL", _sdk_08),
+    _Scenario("SDK-08", "Rejected immutable updates", "SDK_LOCAL", _sdk_08, True),
     _Scenario("SDK-09", "Public error hierarchy", "SDK_LOCAL", _sdk_09),
-    _Scenario("SDK-10", "Whitespace contract", "SDK_LOCAL", _sdk_10),
-    _Scenario("SDK-11", "Finite numeric contract", "SDK_LOCAL", _sdk_11),
-    _Scenario("SDK-12", "Null and root contract", "SDK_LOCAL", _sdk_12),
-    _Scenario("SDK-13", "Aggregate guard and fail-fast order", "SDK_LOCAL", _sdk_13),
-    _Scenario("SDK-14", "Bill of Materials contract", "SDK_LOCAL", _sdk_14),
+    _Scenario("SDK-10", "Whitespace contract", "SDK_LOCAL", _sdk_10, True),
+    _Scenario("SDK-11", "Finite numeric contract", "SDK_LOCAL", _sdk_11, True),
+    _Scenario("SDK-12", "Null and root contract", "SDK_LOCAL", _sdk_12, True),
+    _Scenario("SDK-13", "Aggregate guard and fail-fast order", "SDK_LOCAL", _sdk_13, True),
+    _Scenario("SDK-14", "Bill of Materials contract", "SDK_LOCAL", _sdk_14, True),
     _Scenario("SDK-15", "Client resource ownership", "CONTROLLED", _sdk_15),
+    _Scenario("SDK-16", "Codec mapping cause", "SDK_LOCAL", _sdk_16, True),
+    _Scenario("SDK-17", "Registry request construction", "CONTROLLED", _sdk_17),
 ]
 
 
@@ -461,7 +488,11 @@ def run_sdk_scenarios(run_id: UUID | None = None) -> tuple[ScenarioResult, ...]:
                     scenario_id=scenario.scenario_id,
                     name=scenario.name,
                     category=scenario.category,
-                    status=ScenarioStatus.PASSED,
+                    status=(
+                        ScenarioStatus.EXPECTED_ERROR
+                        if scenario.expected_error
+                        else ScenarioStatus.PASSED
+                    ),
                     duration_seconds=perf_counter() - started,
                     summary=outcome.summary,
                     details=outcome.details,
