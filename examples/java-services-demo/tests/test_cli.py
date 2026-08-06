@@ -3,15 +3,73 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 
 from dpp_java_services_demo import __main__ as cli
 from dpp_java_services_demo.config import DemoConfig
-from dpp_java_services_demo.image_identity import ImageEquivalence, ImageIdentityReport
+from dpp_java_services_demo.fixtures import DemoIdentity
+from dpp_java_services_demo.image_identity import (
+    ImageEquivalence,
+    ImageIdentityReport,
+    RuntimeImageIdentity,
+)
+from dpp_java_services_demo.integration_scenarios import run_integration_scenarios
 from dpp_java_services_demo.reporting import LiveRun, ScenarioResult, ScenarioStatus
 
 _REAL_INSTALLED_SDK_RESULT = cli._installed_sdk_result
+
+
+def test_parser_exposes_canonical_modes_and_legacy_aliases() -> None:
+    choices = cli._parser()._actions[1].choices
+
+    assert set(choices) == {"sdk", "demo", "full", "verify", "integration", "services", "all"}
+
+
+@pytest.mark.parametrize(
+    ("requested", "canonical", "profile"),
+    (
+        ("sdk", "sdk", "sdk"),
+        ("demo", "demo", "demo"),
+        ("full", "full", "full"),
+        ("verify", "verify", "verify"),
+        ("integration", "demo", "integration"),
+        ("services", "full", "full"),
+        ("all", "full", "all"),
+    ),
+)
+def test_mode_resolution_preserves_legacy_behavior(
+    requested: str, canonical: str, profile: str
+) -> None:
+    resolution = cli.resolve_mode(requested)
+
+    assert resolution.canonical == canonical
+    assert resolution.requested == requested
+    assert resolution.profile == profile
+
+
+def test_full_mode_forwards_detailed_to_its_renderer(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured: list[bool] = []
+    monkeypatch.setattr(cli, "_report", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(cli, "has_required_failure", lambda _report: False)
+    monkeypatch.setattr(
+        cli,
+        "_load_service_config",
+        lambda _args: DemoConfig(
+            "repo", "registry", "repo", "registry", Path("demo.env"), 1.0, False
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "render_text",
+        lambda _report, *, summary, detailed=False: captured.append(detailed) or "full",
+    )
+
+    assert cli.main(["full", "--detailed"]) == 0
+    assert captured == [True]
 
 
 def _passed(scenario_id: str, category: str) -> ScenarioResult:
@@ -163,6 +221,134 @@ def test_verify_writes_atomic_json_report(
     assert payload["image_equivalence"] == "SAME_BUILD"
     assert payload["python_repo_commit"] == "test-commit"
     assert not list(report_path.parent.glob("*.tmp"))
+
+
+def test_integration_writes_atomic_json_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report_path = tmp_path / "evidence" / "integration.json"
+    monkeypatch.setattr(
+        cli,
+        "run_integration_scenarios",
+        lambda identity, config, **_kwargs: object(),
+    )
+
+    payload = {"mode": "integration", "summary": {"total": 0}}
+    cli._write_json_report(report_path, payload)
+
+    assert json.loads(report_path.read_text(encoding="utf-8"))["mode"] == "integration"
+    assert not list(report_path.parent.glob("*.tmp"))
+
+
+def test_integration_captures_runtime_identity_only_for_explicit_project(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured_projects: list[str] = []
+    runtime_identity = RuntimeImageIdentity(
+        repo_runtime_digest="sha256:repo-runtime",
+        registry_runtime_digest="sha256:registry-runtime",
+    )
+
+    def capture_runtime(config: DemoConfig, *, compose_project: str) -> RuntimeImageIdentity:
+        assert config.repo_image
+        captured_projects.append(compose_project)
+        return runtime_identity
+
+    def integration_runner(identity: object, config: DemoConfig, **kwargs: object) -> object:
+        assert kwargs["image_identity"] is runtime_identity
+        return object()
+
+    monkeypatch.setattr(cli, "capture_runtime_image_identities", capture_runtime)
+    monkeypatch.setattr(cli, "run_integration_scenarios", integration_runner)
+    monkeypatch.setattr(
+        cli,
+        "integration_payload",
+        lambda _report: {"mode": "integration", "exit_outcome": "SUCCESS"},
+    )
+
+    assert cli.main(["integration", "--compose-project", "isolated-project", "--json"]) == 0
+    assert captured_projects == ["isolated-project"]
+    assert json.loads(capsys.readouterr().out)["mode"] == "integration"
+
+
+def test_integration_blocked_readiness_writes_json_failure_and_returns_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    blocked = run_integration_scenarios(
+        DemoIdentity.from_run_id(UUID("12345678-1234-5678-9234-567812345678")),
+        config=None,
+    )
+    report_path = tmp_path / "blocked-integration.json"
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda *_args, **_kwargs: DemoConfig(
+            repo_base_url="http://localhost:18080",
+            registry_base_url="http://localhost:18081",
+            repo_image="repo@example",
+            registry_image="registry@example",
+            env_file=tmp_path / "demo.env",
+            startup_timeout_seconds=2.0,
+            legacy=False,
+        ),
+    )
+    monkeypatch.setattr(cli, "run_integration_scenarios", lambda *_args, **_kwargs: blocked)
+
+    assert cli.main(["integration", "--json", "--report-file", str(report_path)]) == 1
+    console_payload = json.loads(capsys.readouterr().out)
+    file_payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert console_payload == file_payload
+    assert console_payload["exit_outcome"] == "FAILURE"
+    assert console_payload["summary"]["blocked_steps"] == 14
+
+
+def test_integration_invalid_configuration_and_missing_mode_return_parser_errors(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad profile")),
+    )
+
+    assert cli.main(["integration"]) == 2
+    assert "integration mode requires service configuration: bad profile" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as missing_mode:
+        cli._parser().parse_args([])
+    assert missing_mode.value.code == 2
+
+
+def test_successful_integration_does_not_mask_a_later_verify_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(cli, "run_integration_scenarios", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        cli,
+        "integration_payload",
+        lambda _report: {"mode": "integration", "exit_outcome": "SUCCESS"},
+    )
+
+    assert cli.main(["integration", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["exit_outcome"] == "SUCCESS"
+
+    monkeypatch.setattr(
+        cli,
+        "run_repository_scenarios",
+        lambda _config, _identity: LiveRun(
+            (
+                ScenarioResult(
+                    scenario_id="REP-01",
+                    name="repository readiness",
+                    category="LIVE_050",
+                    status=ScenarioStatus.FAILED,
+                    duration_seconds=0.0,
+                    summary="repository unavailable",
+                ),
+            )
+        ),
+    )
+    assert cli.main(["verify"]) == 1
+    assert "PYTHON_JAVA_SERVICES_INTEROPERABILITY_FAILED" in capsys.readouterr().out
 
 
 def test_maintained_failure_is_nonzero(

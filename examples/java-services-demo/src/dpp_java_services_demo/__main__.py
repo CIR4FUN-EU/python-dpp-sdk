@@ -8,7 +8,7 @@ import json
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
@@ -23,6 +23,12 @@ from .image_identity import (
     ImageIdentityReport,
     ImageInspectionError,
     capture_image_identities,
+    capture_runtime_image_identities,
+)
+from .integration_scenarios import (
+    integration_payload,
+    render_integration_text,
+    run_integration_scenarios,
 )
 from .registry_scenarios import run_registry_scenarios
 from .reporting import (
@@ -40,6 +46,33 @@ from .repository_scenarios import run_repository_scenarios
 from .sdk_scenarios import run_sdk_scenarios
 
 _CONTRACT_BASELINE = "62fe00932e184744ca3de15c47491326881e4c7a"
+_SDK_DEMONSTRATION_RUN_ID = UUID("12345678-1234-5678-9234-567812345678")
+
+
+@dataclass(frozen=True)
+class ModeResolution:
+    """Canonical execution identity plus a transparent compatibility request."""
+
+    requested: str
+    canonical: str
+    profile: str
+    compatibility_alias: str = ""
+
+
+def resolve_mode(requested: str) -> ModeResolution:
+    """Resolve canonical modes without silently changing a legacy evidence set."""
+
+    canonical, profile = {
+        "integration": ("demo", "integration"),
+        "services": ("full", "full"),
+        "all": ("full", "all"),
+    }.get(requested, (requested, requested))
+    return ModeResolution(
+        requested=requested,
+        canonical=canonical,
+        profile=profile,
+        compatibility_alias=requested if requested in {"integration", "services", "all"} else "",
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -47,14 +80,32 @@ def _parser() -> argparse.ArgumentParser:
         prog="python -m dpp_java_services_demo",
         description="Exercise the public Python SDK against disposable Java service images.",
     )
-    parser.add_argument("mode", choices=("sdk", "services", "all", "verify"))
+    parser.add_argument(
+        "mode",
+        choices=("sdk", "demo", "full", "verify", "integration", "services", "all"),
+        help=(
+            "sdk=local education; demo=curated live education; full=broad live health check; "
+            "verify=strict evidence. integration, services, and all are compatibility aliases."
+        ),
+    )
     parser.add_argument("--env-file", type=Path, help="Compose/demo environment profile")
     parser.add_argument(
         "--legacy",
         action="store_true",
         help="Explicitly allow the optional, non-blocking 0.4.0 profile",
     )
-    parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", help="Emit JSON instead of text")
+    output.add_argument(
+        "--summary",
+        action="store_true",
+        help="Emit the compact SDK scenario summary instead of the detailed walkthrough",
+    )
+    output.add_argument(
+        "--detailed",
+        action="store_true",
+        help="Emit detailed teaching output where the selected mode supports it",
+    )
     parser.add_argument("--report-file", type=Path, help="Write retained JSON evidence atomically")
     parser.add_argument(
         "--compose-project",
@@ -214,6 +265,9 @@ def _run_live(config: DemoConfig, run_id: UUID) -> LiveRun:
 def _summary(mode: str) -> str:
     return {
         "sdk": "SDK capability demonstration completed",
+        "demo": "Curated live Java demonstration completed",
+        "full": "Full Java repository and registry health check completed",
+        "integration": "Live educational Java integration demonstration completed",
         "services": "Java repository and registry interoperability completed",
         "all": "SDK demonstration and Java service interoperability completed",
         "verify": "Full assertion-based SDK and Java service verification completed",
@@ -233,29 +287,34 @@ def _report(
     mode: str,
     load_service_config: Callable[[], DemoConfig] | None = None,
     *,
+    execution_profile: str | None = None,
+    requested_mode: str | None = None,
+    compatibility_alias: str = "",
     compose_project: str | None = None,
     sdk_wheel: Path | None = None,
 ) -> DemoReport:
+    requested_mode = requested_mode or mode
+    execution_profile = execution_profile or mode
     started_at = _now()
-    run_id = uuid4()
+    run_id = _SDK_DEMONSTRATION_RUN_ID if mode == "sdk" else uuid4()
     results: tuple[ScenarioResult, ...] = ()
     cleanup_warnings: tuple[str, ...] = ()
     image_identity: ImageIdentityReport | None = None
     image_error: ImageInspectionError | None = None
     config: DemoConfig | None = None
 
-    if mode in {"sdk", "all", "verify"}:
+    if execution_profile in {"sdk", "all", "verify"}:
         results = run_sdk_scenarios(run_id)
-    if mode == "verify":
+    if execution_profile == "verify":
         results = (*results, *run_controlled_scenarios())
-    if mode in {"services", "all", "verify"}:
+    if execution_profile in {"full", "services", "all", "verify"}:
         if load_service_config is None:
             raise ValueError(f"{mode} mode requires service configuration")
         config = load_service_config()
         live = _run_live(config, run_id)
         results = (*results, *live.results)
         cleanup_warnings = live.cleanup_warnings
-    if mode == "verify":
+    if execution_profile == "verify":
         assert config is not None
         results = (*results, _installed_sdk_result(config, sdk_wheel))
         try:
@@ -292,11 +351,11 @@ def _report(
     sdk_file = dpp_sdk.__file__
     commit = _git_commit(config.env_file if config is not None else Path.cwd())
     return DemoReport(
-        mode=mode,
+        mode=requested_mode,
         run_id=run_id,
         results=results,
-        summary=_summary(mode),
-        partial=mode != "verify" or is_legacy,
+        summary=_summary(requested_mode),
+        partial=execution_profile != "verify" or is_legacy,
         sdk_version=dpp_sdk.__version__,
         sdk_location=str(Path(sdk_file).resolve()) if sdk_file is not None else "<unknown>",
         sdk_wheel=str(sdk_wheel.resolve()) if sdk_wheel is not None else "",
@@ -344,19 +403,58 @@ def _report(
         started_at=started_at,
         ended_at=_now(),
         verdict=verdict,
+        mode_verdict=("SDK_DEMONSTRATION_FAILED" if failed else "SDK_DEMONSTRATION_PASSED")
+        if mode == "sdk"
+        else (
+            "FULL_INTEGRATION_BLOCKED"
+            if mode == "full"
+            and any(
+                result.scenario_id in {"REP-01", "REG-01"}
+                and result.status is ScenarioStatus.FAILED
+                for result in results
+            )
+            else "FULL_INTEGRATION_FAILED"
+            if mode == "full" and failed
+            else "FULL_INTEGRATION_PASSED"
+            if mode == "full"
+            else ""
+        ),
+        canonical_mode=mode,
+        requested_mode=requested_mode,
+        compatibility_alias=compatibility_alias,
     )
 
 
 def _write_report(path: Path, report: DemoReport) -> None:
+    _write_json_report(path, json.loads(render_json(report)))
+
+
+def _write_json_report(path: Path, payload: dict[str, object]) -> None:
+    """Write a JSON report through a same-directory temporary file."""
+
     path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
-        temporary.write_text(f"{render_json(report)}\n", encoding="utf-8")
+        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         temporary.replace(path)
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def _annotate_live_payload(
+    payload: dict[str, object], resolution: ModeResolution
+) -> dict[str, object]:
+    """Attach request identity without changing the evidence captured by the runner."""
+
+    return {
+        **payload,
+        "canonical_mode": resolution.canonical,
+        "requested_mode": resolution.requested,
+        "compatibility_alias": resolution.compatibility_alias or None,
+        "scenario_selection": "curated" if resolution.profile == "demo" else "legacy_connected",
+    }
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -364,12 +462,43 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = _parser()
     args = parser.parse_args(argv)
+    resolution = resolve_mode(args.mode)
     try:
+        if resolution.profile in {"demo", "integration"}:
+            config = _load_service_config(args)
+            runtime_identity = None
+            identity_error = ""
+            if args.compose_project:
+                try:
+                    runtime_identity = capture_runtime_image_identities(
+                        config, compose_project=args.compose_project
+                    )
+                except ImageInspectionError as exc:
+                    identity_error = f"{type(exc).__name__}: {exc}"
+            report = run_integration_scenarios(
+                DemoIdentity.from_run_id(uuid4()),
+                config,
+                profile=resolution.profile,
+                image_identity=runtime_identity,
+                image_identity_error=identity_error,
+            )
+            payload = _annotate_live_payload(integration_payload(report), resolution)
+            if args.report_file is not None:
+                _write_json_report(args.report_file, payload)
+            print(
+                json.dumps(payload, indent=2, sort_keys=True)
+                if args.json
+                else render_integration_text(report)
+            )
+            return 0 if payload["exit_outcome"] == "SUCCESS" else 1
         report = _report(
-            args.mode,
+            resolution.canonical,
             (lambda: _load_service_config(args))
-            if args.mode in {"services", "all", "verify"}
+            if resolution.canonical in {"full", "all", "verify"}
             else None,
+            execution_profile=resolution.profile,
+            requested_mode=resolution.requested,
+            compatibility_alias=resolution.compatibility_alias,
             compose_project=args.compose_project,
             sdk_wheel=args.sdk_wheel,
         )
@@ -378,8 +507,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     if args.report_file is not None:
         _write_report(args.report_file, report)
-    print(render_json(report) if args.json else render_text(report))
-    if args.mode in {"services", "all", "verify"} and args.legacy:
+    print(
+        render_json(report)
+        if args.json
+        else render_text(report, summary=args.summary, detailed=args.detailed)
+    )
+    if resolution.canonical in {"full", "all", "verify"} and args.legacy:
         return 0
     return 1 if has_required_failure(report) else 0
 

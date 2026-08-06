@@ -948,8 +948,16 @@ def run_sdk_scenarios(run_id: UUID | None = None) -> tuple[ScenarioResult, ...]:
                 raise AssertionError(
                     f"{scenario.scenario_id} did not capture its structured teaching evidence"
                 )
-            if scenario.operation is None:
-                raise AssertionError(f"{scenario.scenario_id} has no public operation metadata")
+            if not all(
+                (
+                    scenario.purpose,
+                    scenario.operation,
+                    scenario.expected_behavior,
+                    scenario.explanation,
+                    scenario.why_it_matters,
+                )
+            ):
+                raise AssertionError(f"{scenario.scenario_id} has incomplete teaching metadata")
             results.append(
                 ScenarioResult(
                     scenario_id=scenario.scenario_id,

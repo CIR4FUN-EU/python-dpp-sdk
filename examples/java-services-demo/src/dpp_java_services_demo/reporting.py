@@ -115,6 +115,9 @@ class DemoReport:
         InteroperabilityVerdict.PYTHON_JAVA_SERVICES_INTEROPERABILITY_INCOMPLETE
     )
     mode_verdict: str = ""
+    canonical_mode: str = ""
+    requested_mode: str = ""
+    compatibility_alias: str = ""
 
 
 def scenario_totals(results: tuple[ScenarioResult, ...]) -> ScenarioTotals:
@@ -192,6 +195,22 @@ def _render_sdk_detailed(report: DemoReport) -> str:
     for result in report.results:
         teaching = result.teaching
         if teaching is None:
+            lines.extend(
+                (
+                    "",
+                    f"[{result.scenario_id}] {result.name}",
+                    "Status: FAILED",
+                    f"Evidence: {result.category}",
+                    "Observed result",
+                    f"  {result.summary}",
+                    f"  {result.details or 'No additional diagnostic was captured.'}",
+                    "Explanation",
+                    "  The scenario failed before it could capture its normal teaching evidence.",
+                    "Why this matters",
+                    "  The demonstration keeps unexpected failures visible so they can be "
+                    "investigated.",
+                )
+            )
             continue
         if teaching.group != previous_group:
             group_title = teaching.group.replace("_", " ").title()
@@ -241,7 +260,7 @@ def _render_sdk_detailed(report: DemoReport) -> str:
     return "\n".join(lines)
 
 
-def render_text(report: DemoReport, *, summary: bool = False) -> str:
+def render_text(report: DemoReport, *, summary: bool = False, detailed: bool = False) -> str:
     """Render a compact, complete report for manual use."""
 
     totals = scenario_totals(report.results)
@@ -287,7 +306,7 @@ def render_text(report: DemoReport, *, summary: bool = False) -> str:
             f"- {result.scenario_id} | {result.name} | {result.category} | "
             f"{result.status.value} | {result.duration_seconds:.3f}s | {result.summary}"
         )
-        if result.details:
+        if result.details and (detailed or report.canonical_mode != "full"):
             lines.append(f"  details: {result.details}")
     for warning in report.cleanup_warnings:
         lines.append(f"cleanup_warning: {warning}")

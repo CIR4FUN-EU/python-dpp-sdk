@@ -29,12 +29,19 @@ from dpp_sdk.dpp4fun.model import (
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption(
-        "--run-java-services",
-        action="store_true",
-        default=False,
-        help="run integration tests against already-running Java repository and registry services",
-    )
+    try:
+        parser.addoption(
+            "--run-java-services",
+            action="store_true",
+            default=False,
+            help=(
+                "run integration tests against already-running Java "
+                "repository and registry services"
+            ),
+        )
+    except ValueError as exc:
+        if "--run-java-services" not in str(exc):
+            raise
 
 
 @pytest.fixture(autouse=True)

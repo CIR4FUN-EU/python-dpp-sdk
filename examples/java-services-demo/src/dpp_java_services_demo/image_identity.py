@@ -39,6 +39,14 @@ class ImageIdentityReport:
     equivalence: ImageEquivalence
 
 
+@dataclass(frozen=True)
+class RuntimeImageIdentity:
+    """Serving-image identity needed by the educational integration report."""
+
+    repo_runtime_digest: str
+    registry_runtime_digest: str
+
+
 def _run_command(command: Sequence[str]) -> str:
     try:
         completed = subprocess.run(
@@ -157,4 +165,32 @@ def capture_image_identities(
         equivalence=(
             ImageEquivalence.SAME_BUILD if same_build else ImageEquivalence.DIFFERENT_BUILD
         ),
+    )
+
+
+def capture_runtime_image_identities(
+    config: DemoConfig,
+    *,
+    compose_project: str,
+    runner: CommandRunner = _run_command,
+) -> RuntimeImageIdentity:
+    """Capture only the configured services' serving digests, without remote inspection."""
+
+    if not compose_project.strip():
+        raise ImageInspectionError("a non-blank Compose project is required")
+    _, _, repo_runtime = _container_identity(
+        compose_project,
+        "dpp-repo-api",
+        config.repo_image,
+        runner,
+    )
+    _, _, registry_runtime = _container_identity(
+        compose_project,
+        "dpp-registry-api",
+        config.registry_image,
+        runner,
+    )
+    return RuntimeImageIdentity(
+        repo_runtime_digest=repo_runtime,
+        registry_runtime_digest=registry_runtime,
     )

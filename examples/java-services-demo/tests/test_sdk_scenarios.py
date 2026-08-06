@@ -80,3 +80,18 @@ def test_sdk_runner_converts_an_uncontrolled_scenario_error_to_failed_result(
 
     assert result.status is ScenarioStatus.FAILED
     assert "RuntimeError" in result.details
+
+
+def test_sdk_runner_rejects_a_scenario_with_missing_teaching_metadata(monkeypatch) -> None:
+    import pytest
+
+    import dpp_java_services_demo.sdk_scenarios as scenarios
+
+    monkeypatch.setattr(
+        scenarios,
+        "SCENARIOS",
+        [scenarios.SCENARIOS[0]._replace(explanation=""), *scenarios.SCENARIOS[1:]],
+    )
+
+    with pytest.raises(AssertionError, match="SDK-01 has incomplete teaching metadata"):
+        scenarios.run_sdk_scenarios(UUID("12345678-1234-5678-9234-567812345678"))
