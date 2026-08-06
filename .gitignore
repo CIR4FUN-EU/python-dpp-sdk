@@ -9,6 +9,10 @@ verification-report.json
 legacy-verification-report.json
 .venv/
 venv/
+.java-services-demo-venv/
+site-packages/
+dist-packages/
+pyvenv.cfg
 
 # Tooling caches
 .pytest_cache/

@@ -18,7 +18,7 @@ from pydantic import ValidationError
 from dpp_sdk.core.errors import DppMappingError, DppValidationError
 from dpp_sdk.dpp4fun.transport import from_json, from_json_and_validate, to_json
 
-_FIXTURE_DIR = Path("docs/java-python-parity/java-source-of-truth/golden-fixtures")
+_FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "java-contract"
 _METADATA = json.loads((_FIXTURE_DIR / "fixture-metadata.json").read_text(encoding="utf-8"))
 _CONTRACT_IDS = {
     "models:valid-complete-dpp": "FIXTURE-MODELS-VALID-COMPLETE-DPP",
@@ -31,6 +31,12 @@ _CONTRACT_IDS = {
     "errors:invalid-semantic-rule": "FIXTURE-ERRORS-INVALID-SEMANTIC-RULE",
     "errors:invalid-cross-object-rule": "FIXTURE-ERRORS-INVALID-CROSS-OBJECT-RULE",
 }
+
+
+def test_fixture_directory_is_python_owned() -> None:
+    expected = Path(__file__).resolve().parent / "fixtures" / "java-contract"
+    assert _FIXTURE_DIR.resolve() == expected
+    assert (_FIXTURE_DIR / "fixture-metadata.json").is_file()
 
 
 def _fixture_parameters() -> list[object]:
@@ -46,7 +52,7 @@ def _fixture_parameters() -> list[object]:
 def test_java_fixture_hash_and_contract_outcome(contract_id: str, entry: dict[str, object]) -> None:
     path = _FIXTURE_DIR / str(entry["file"])
     raw = path.read_text(encoding="utf-8")
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == entry["sha256"]
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == entry["pythonSnapshotSha256"]
 
     if entry["expectedOutcome"] == "success":
         parsed = from_json_and_validate(raw)

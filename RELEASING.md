@@ -5,7 +5,7 @@ This repository publishes the `dpp-sdk` Python package from version tags matchin
 
 ## Before tagging
 
-**Run from:** the Python repository root, `Dpp-SDK-python/dpp-python-sdk`.
+**Run from:** the Python repository root, the directory containing `pyproject.toml`.
 **Prerequisites:** the checkout development environment.
 
 1. Confirm `src/dpp_sdk/__init__.py`, `CHANGELOG.md`, and the intended tag use the same version.

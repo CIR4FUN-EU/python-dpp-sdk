@@ -1,0 +1,161 @@
+{
+  "schemaVersion" : "1.0",
+  "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+  "module" : "dpp-datamodel/dpp4fun",
+  "generatorClass" : "DeterministicFixtureGenerator",
+  "productionClassesExecuted" : [ "Dpp4Fun.Builder", "DppCore.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec", "Jackson ObjectMapper" ],
+  "fixtures" : [ {
+    "fixtureId" : "models:valid-complete-dpp",
+    "file" : "valid-complete-dpp.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "completeDpp",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "success",
+    "expectedException" : null,
+    "sha256" : "031cb4f28bfd595da92304d53b2d9f663604208627c6f14ea3e4597267b4aad3",
+    "pythonSnapshotSha256" : "4e50b877096e44fb2162dbf62c9ab5f14e8350f5fc69e4d7fe12817ec5f3a93f",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "models:valid-minimal-dpp",
+    "file" : "valid-minimal-dpp.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "minimalDpp",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "success",
+    "expectedException" : null,
+    "sha256" : "b6ff2aa61d337cb5d1098d577e71d95e8dbfc169563dc809e6f1d491ac8da5e5",
+    "pythonSnapshotSha256" : "6160b937e4d01453d1ae530cd985689de5e0f110241345c519d1684198ace18d",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "models:canonical-java-output",
+    "file" : "canonical-java-output.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "completeDpp",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "success",
+    "expectedException" : null,
+    "sha256" : "031cb4f28bfd595da92304d53b2d9f663604208627c6f14ea3e4597267b4aad3",
+    "pythonSnapshotSha256" : "4e50b877096e44fb2162dbf62c9ab5f14e8350f5fc69e4d7fe12817ec5f3a93f",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "models:valid-flat-input",
+    "file" : "valid-flat-input.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "completeDpp",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "success",
+    "expectedException" : null,
+    "sha256" : "031cb4f28bfd595da92304d53b2d9f663604208627c6f14ea3e4597267b4aad3",
+    "pythonSnapshotSha256" : "4e50b877096e44fb2162dbf62c9ab5f14e8350f5fc69e4d7fe12817ec5f3a93f",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "models:valid-nested-input",
+    "file" : "valid-nested-input.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "nestedInput",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "success",
+    "expectedException" : null,
+    "sha256" : "7fb0533e1f0b144deca0efced5c7044cec4f879fd729d13113a0b2a3a5f217fb",
+    "pythonSnapshotSha256" : "1f16c92b55c421cf649dbf63fba1ac8c77180b5ae542705e9d4a40a1d1149d24",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "errors:invalid-missing-required-field",
+    "file" : "invalid-missing-required-field.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "missingRequired",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "failure",
+    "expectedException" : "MappingException",
+    "sha256" : "7c92f22e1013c95dbd222930fb5f81dcae38c375d80697a03e16e8df559a9e9e",
+    "pythonSnapshotSha256" : "b7e550f12f0ab45ae2adefc4d7771704b47f143c2aaf428707968235573a3cf2",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "errors:invalid-semantic-rule",
+    "file" : "invalid-semantic-rule.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "semanticFailure",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "failure",
+    "expectedException" : "ValidationException",
+    "sha256" : "73db902b95a48ad2859289c97fb35e662ad711febe1e21593d639882e4c4dad1",
+    "pythonSnapshotSha256" : "21f45231f7e194fc8ebeaadcbb4d49caa35efe609579900be12c2eeb228cda2c",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "errors:invalid-cross-object-rule",
+    "file" : "invalid-cross-object-rule.json",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "crossObjectFailure",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "failure",
+    "expectedException" : "ValidationException",
+    "sha256" : "6812187eb825ce6da4a10cfb96c6c7e56a8c36249172bc896a991285ea477979",
+    "pythonSnapshotSha256" : "dff4dd4a33079535812ba92882fba598561ab9be7a2008e924bc043bf545d04d",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  }, {
+    "fixtureId" : "errors:malformed-json",
+    "file" : "malformed-json.txt",
+    "sourceCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+    "module" : "dpp-datamodel/dpp4fun",
+    "generatorClass" : "DeterministicFixtureGenerator",
+    "generatorMethod" : "malformedJson",
+    "productionClassesExecuted" : [ "Dpp4Fun.Builder", "Dpp4FunValidationService", "Dpp4FunJsonCodec" ],
+    "deterministicValues" : {
+      "uuid" : "11111111-1111-4111-8111-111111111111",
+      "date" : "2026-01-15"
+    },
+    "expectedOutcome" : "failure",
+    "expectedException" : "IllegalArgumentException",
+    "sha256" : "fc1932df6fdd4cdd812e28ae28bc9b5f98df11f0e81fa699d4440e1a136edbb7",
+    "pythonSnapshotSha256" : "5715ea11351f96c1faee52d83ceb8edf41612427a452f7acc780b6bc05072500",
+    "generationCommand" : "powershell.exe -ExecutionPolicy Bypass -File generate-deterministic-fixtures.ps1"
+  } ]
+}
