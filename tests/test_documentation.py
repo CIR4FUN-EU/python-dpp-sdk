@@ -246,19 +246,80 @@ def test_demo_readme_makes_sdk_json_output_easy_to_inspect() -> None:
     assert "Get-Content $sdkReport -TotalCount 24" in demo
 
 
-def test_root_readme_has_quick_java_service_check_commands() -> None:
+def test_root_readme_quick_service_commands_use_one_env_file() -> None:
     readme = _read("README.md")
 
     assert "## Quick Java-service checks" in readme
-    assert "manage-java-services.ps1 -Action Start -Project $project" in readme
+    assert 'Copy-Item (Join-Path $demoDir ".env.example") $envFile' in readme
+    assert "ConvertFrom-StringData" in readme
+    assert 'Write-Host "Using Compose project: $project"' in readme
+    assert "-Action Start -EnvFile $envFile" in readme
     assert 'pytest .\\tests -m "not integration"' in readme
     assert "tests\\test_integration_live.py --run-java-services" in readme
     assert "examples\\java-services-demo\\tests --run-java-services" in readme
     assert "successful Start command" in readme
     assert "## Linux/macOS quick checks" in readme
-    assert 'project="dpp-java-services-demo-$$"' in readme
+    assert 'cp "$demo_dir/.env.example" "$env_file"' in readme
+    assert "printf 'Using Compose project: %s\\n' \"$project\"" in readme
+    linux_start = 'pwsh -File "$demo_dir/manage-java-services.ps1"'
+    linux_start += ' -Action Start -EnvFile "$env_file"'
+    assert linux_start in readme
     assert 'pytest ./tests -m "not integration"' in readme
     assert "./tests/test_integration_live.py --run-java-services" in readme
+
+
+def test_root_readme_live_checks_use_configured_endpoints() -> None:
+    readme = _read("README.md")
+
+    assert "$env:DPP_REPO_BASE_URL = $demoConfig.DPP_REPO_BASE_URL" in readme
+    assert "$env:DPP_REGISTRY_BASE_URL = $demoConfig.DPP_REGISTRY_BASE_URL" in readme
+    assert "export DPP_REPO_BASE_URL=\"$(sed -n 's/^DPP_REPO_BASE_URL=//p'" in readme
+    assert "export DPP_REGISTRY_BASE_URL=\"$(sed -n 's/^DPP_REGISTRY_BASE_URL=//p'" in readme
+    assert "published Java repository" in readme
+    assert "registry images selected by `.env`" in readme
+    assert "`http://localhost:18080/`" in readme
+    assert "`http://localhost:18081/`" in readme
+    assert "$demoDir = (Resolve-Path .\\java-services-demo).Path" in readme
+    portable_start = 'pwsh -File (Join-Path $demoDir "manage-java-services.ps1")'
+    portable_start += " -Action Start -EnvFile $envFile"
+    assert portable_start in readme
+    assert 'demo_dir="$(cd ./java-services-demo && pwd)"' in readme
+    portable_linux_start = 'pwsh -File "$demo_dir/manage-java-services.ps1"'
+    portable_linux_start += ' -Action Start -EnvFile "$env_file"'
+    assert portable_linux_start in readme
+    assert "pinned public images" not in readme
+    assert "open `http://localhost:8080/` or" not in readme
+
+
+def test_java_service_guides_offer_a_policy_safe_native_compose_fallback() -> None:
+    root = _read("README.md")
+    demo = _read("examples/java-services-demo/README.md")
+
+    assert "If Windows PowerShell blocks scripts" in root
+    assert (
+        'docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile '
+        "config --quiet"
+    ) in root
+    assert (
+        'docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile '
+        "pull --policy missing"
+    ) in root
+    assert (
+        'docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile '
+        "up -d --wait --wait-timeout 120"
+    ) in root
+    assert "If Windows PowerShell blocks scripts" in demo
+    assert "ConvertFrom-StringData" in demo
+    assert "$project = $demoConfig.COMPOSE_PROJECT_NAME" in demo
+    assert "$env:DPP_REPO_BASE_URL = $demoConfig.DPP_REPO_BASE_URL" in demo
+    assert "$env:DPP_REGISTRY_BASE_URL = $demoConfig.DPP_REGISTRY_BASE_URL" in demo
+    assert "docker compose -f $composeFile -p $project --env-file $envFile config --quiet" in demo
+    assert (
+        "docker compose -f $composeFile -p $project --env-file $envFile pull --policy missing"
+        in demo
+    )
+    assert "docker compose -f $composeFile -p $project --env-file $envFile up -d --wait" in demo
+    assert "ExecutionPolicy Bypass" not in root + demo
 
 
 def test_demo_setup_defines_compose_variables_used_by_operations_reference() -> None:
@@ -320,7 +381,7 @@ def test_installation_and_demo_commands_keep_their_working_directory_contracts()
     assert "**Run from:** the Python repository root" in release
     assert "from `examples/java-services-demo`" not in demo + operations
     assert "dpp-java-services-demo-$PID" in demo
-    assert "dpp-java-services-demo-$$" in demo
+    assert "COMPOSE_PROJECT_NAME" in demo
     assert 'DPP_REPO_BASE_URL = "http://localhost:18080"' in operations
     assert "DPP_REPO_BASE_URL=http://localhost:18080" in operations
     assert "-Action Delete -ConfirmDelete" in demo
@@ -403,8 +464,59 @@ def test_demo_guides_distinguish_modes_and_document_stale_installation_evidence(
     assert "same-version installation can still be stale" in demo
     assert "pip show dpp-sdk dpp-sdk-java-services-demo" in demo
     assert "Strict verification: NOT_RUN (separate command)." in demo
+    assert "Use `--detailed` when you need the full operation evidence." in demo
+    assert "Copy `.env.example` to an ignored local `.env`" in demo
+    assert "The later Start command pulls" in demo
+    assert "missing configured images and starts the services" in demo
+    assert "educational JSON evidence" in demo
+    assert "Use `verify` for strict package, controlled, and image evidence." in demo
+    assert "The same evidence as strict JSON" not in demo
     for text in (demo, operations):
         assert "demo" in text
         assert "full" in text
         assert "verify" in text
         assert "--compose-project" in text
+
+
+def test_demo_readme_uses_a_goal_led_map_for_canonical_modes() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+
+    assert "## Choose your goal" in demo
+    assert "Learn the local SDK" in demo
+    assert "Present a curated connected workflow" in demo
+    assert "Run the broad functional health check" in demo
+    assert "Collect exhaustive technical evidence" in demo
+    assert "`full --detailed`" in demo
+    assert "exact wheels intentionally" in demo
+    assert "## Quick command map" not in demo
+    assert "The same evidence as strict JSON" not in demo
+    assert (
+        "Copy `.env.example` to an ignored local `.env` before starting Docker. It pulls"
+        not in demo
+    )
+
+
+def test_demo_readme_explains_linux_lifecycle_shell_boundary() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+
+    assert "requires PowerShell 7 (`pwsh`) for the labelled lifecycle commands" in demo
+    assert "native Docker Compose diagnosis and cleanup commands" in demo
+    assert "[operations reference](OPERATIONS.md)" in demo
+
+
+def test_demo_goal_map_links_resolve_to_step_headings() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+    headings = re.findall(r"^(#{1,6})\s+(.+)$", demo, re.MULTILINE)
+    anchors = set()
+    for _, title in headings:
+        cleaned_title = re.sub(r"[^a-z0-9 -]", "", title.lower())
+        anchors.add("#" + cleaned_title.replace(" ", "-"))
+    links = set(re.findall(r"\[[^]]+\]\((#[^)]+)\)", demo))
+
+    for target in (
+        "#step-6-run-the-sdk-only-educational-walkthrough",
+        "#step-9--run-the-live-integration-educational-walkthrough",
+        "#step-10--run-optional-technical-modes",
+    ):
+        assert target in anchors
+        assert target in links

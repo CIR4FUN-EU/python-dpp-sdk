@@ -7,6 +7,50 @@ It is a client library, not a service. It does not run a repository or registry,
 provide Docker, Spring, EDC, or dataspace features. The Java-services demo is a separate optional
 consumer of this SDK.
 
+## Architecture at a glance
+
+![Python SDK architecture](docs/architecture/python-sdk-overview.svg)
+
+*Diagram: your application can use core models directly or through DPP4Fun. It can also use the
+generic HTTP clients; the separate demo uses those same public clients against disposable Java
+services.*
+
+`dpp_sdk.dpp4fun` builds on `dpp_sdk.core`. `dpp_sdk.clients` is separate and generic: your
+application tells it how to check and convert its own passport model. The clients do not depend on
+the concrete core or DPP4Fun packages.
+
+
+## Standards alignment
+
+**EN 18222:2026:** The SDK implements selected public DPP repository and registry API shapes
+alongside the project DPP4Fun model, validation, and JSON rules. It is not a formal compliance implementation. It also makes no certification, legal-conformity, or production-readiness claim.
+
+Some API contracts were designed using confidential external technical specifications that cannot
+be published here. This documentation describes only the behavior implemented by this project.
+
+### What the SDK supports
+
+- Create, read, update, read historical versions of, and delete repository passports.
+- Register passport metadata with a registry.
+- Read a compressed passport as an untyped JSON value when the service provides one.
+
+## Known standards limitations
+
+- The registry request has no backup-operator field or backup-operator operation.
+- Compressed passports use a project-defined format. The SDK does not turn them into a typed
+  `Dpp4Fun` value automatically.
+- Partial updates and element paths are only partly implemented. The SDK sends the documented
+  requests, but it does not provide a complete generic implementation of RFC 7396 JSON Merge Patch
+  or a complete implementation of RFC 9535 JSONPath.
+- The Python SDK does not record lifecycle events or keep a lifecycle-event history.
+- Authentication, backup/recovery, retries, persistence, and other production operations are not
+  provided.
+- The SDK calls public `/v1/...` service routes. Java demo `/internal/...` routes are not Python
+  client methods.
+- No real EU registry integration, production security hardening, or production-operational
+  guarantee is provided.
+
+
 ## Start here
 
 Choose the smallest part that matches your job:
@@ -24,17 +68,6 @@ Choose the smallest part that matches your job:
 | prepare a package release | [Release guide](RELEASING.md) |
 | review changes or licensing | [Changelog](CHANGELOG.md) · [License](LICENSE) |
 
-## Architecture at a glance
-
-![Python SDK architecture](docs/architecture/python-sdk-overview.svg)
-
-*Diagram: your application can use core models directly or through DPP4Fun. It can also use the
-generic HTTP clients; the separate demo uses those same public clients against disposable Java
-services.*
-
-`dpp_sdk.dpp4fun` builds on `dpp_sdk.core`. `dpp_sdk.clients` is separate and generic: your
-application tells it how to check and convert its own passport model. The clients do not depend on
-the concrete core or DPP4Fun packages.
 
 ## Prerequisites
 
@@ -57,12 +90,12 @@ Choose the source deliberately:
 | Need | Install choice | Why |
 | --- | --- | --- |
 | ordinary application use | latest published `dpp-sdk` | uses the newest released distribution; no checkout is required |
-| repeatable deployment or compatibility testing | an exact published version such as `dpp-sdk==0.2.1` | prevents a later release from changing the installed SDK |
-| updates within one released minor line | a compatible version range such as `dpp-sdk~=0.2.1` | accepts compatible `0.2.x` fixes but not `0.3.0` |
+| repeatable deployment or compatibility testing | an exact published version such as `dpp-sdk==0.4.0` | prevents a later release from changing the installed SDK |
+| updates within one released minor line | a compatible version range such as `dpp-sdk~=0.4.0` | accepts compatible `0.4.x` fixes but not `0.5.0` |
 | contribution, an unreleased fix, or reproducing checkout state | install this local checkout | uses the source currently in this repository; it is not a substitute for a released package in production |
 
-Release tags are named `v<major>.<minor>.<patch>` (for example, `v0.2.1`), while pip version
-selectors omit the `v` (for example, `dpp-sdk==0.2.1`).
+Release tags are named `v<major>.<minor>.<patch>` (for example, `v0.4.0`), while pip version
+selectors omit the `v` (for example, `dpp-sdk==0.4.0`).
 
 ### PowerShell
 
@@ -84,15 +117,15 @@ has tested the compatible release line and can accept later patch releases.
 #### PowerShell
 
 ```powershell
-python -m pip install "dpp-sdk==0.2.1"
-python -m pip install "dpp-sdk~=0.2.1"
+python -m pip install "dpp-sdk==0.4.0"
+python -m pip install "dpp-sdk~=0.4.0"
 ```
 
 #### Linux/macOS
 
 ```bash
-python -m pip install "dpp-sdk==0.2.1"
-python -m pip install "dpp-sdk~=0.2.1"
+python -m pip install "dpp-sdk==0.4.0"
+python -m pip install "dpp-sdk~=0.4.0"
 ```
 
 ### Install this local checkout
@@ -214,35 +247,6 @@ def store_and_read(dpp: Dpp4Fun, repository_url: str) -> Dpp4Fun:
 For all operations, request and response payloads, errors, partial updates, and resource ownership,
 see the [clients module guide](src/dpp_sdk/clients/README.md).
 
-## Standards alignment
-
-**EN 18222:2026:** The SDK implements selected public DPP repository and registry API shapes
-alongside the project DPP4Fun model, validation, and JSON rules. It is not a formal compliance implementation. It also makes no certification, legal-conformity, or production-readiness claim.
-
-Some API contracts were designed using confidential external technical specifications that cannot
-be published here. This documentation describes only the behavior implemented by this project.
-
-### What the SDK supports
-
-- Create, read, update, read historical versions of, and delete repository passports.
-- Register passport metadata with a registry.
-- Read a compressed passport as an untyped JSON value when the service provides one.
-
-## Known standards limitations
-
-- The registry request has no backup-operator field or backup-operator operation.
-- Compressed passports use a project-defined format. The SDK does not turn them into a typed
-  `Dpp4Fun` value automatically.
-- Partial updates and element paths are only partly implemented. The SDK sends the documented
-  requests, but it does not provide a complete generic implementation of RFC 7396 JSON Merge Patch
-  or a complete implementation of RFC 9535 JSONPath.
-- The Python SDK does not record lifecycle events or keep a lifecycle-event history.
-- Authentication, backup/recovery, retries, persistence, and other production operations are not
-  provided.
-- The SDK calls public `/v1/...` service routes. Java demo `/internal/...` routes are not Python
-  client methods.
-- No real EU registry integration, production security hardening, or production-operational
-  guarantee is provided.
 
 ### Technical details
 
@@ -266,7 +270,7 @@ failures in client code use `DppMappingClientError`; an HTTPX client you provide
 
 The [Java-services demo](examples/java-services-demo/README.md) uses disposable Java repository
 and registry images to exercise the public Python clients. It is maintained against Java image
-version `0.5.0` with pinned image references; version `0.4.0` is optional legacy evidence only.
+version `0.5.1`; version `0.5.0` is retained as historical image evidence and version `0.4.0` is optional legacy evidence only.
 Its guide separates an SDK-only walkthrough, a curated live demonstration, a broad full health
 check, and strict verification; only strict verification makes package-provenance and image-identity
 claims.
@@ -281,9 +285,41 @@ permanent deletion, use the [Java-services demo guide](examples/java-services-de
 ### 1. Start one isolated Java-service project
 
 ```powershell
-$project = "dpp-java-services-demo-$PID"
-& .\examples\java-services-demo\manage-java-services.ps1 -Action Start -Project $project
+$demoDir = (Resolve-Path .\examples\java-services-demo).Path
+$envFile = Join-Path $demoDir ".env"
+if (-not (Test-Path -LiteralPath $envFile)) {
+  Copy-Item (Join-Path $demoDir ".env.example") $envFile
+  Write-Host "Created $envFile. Edit COMPOSE_PROJECT_NAME and paired port/base-URL values before starting."
+}
+$demoConfig = ConvertFrom-StringData -StringData (
+  (Get-Content -LiteralPath $envFile |
+    Where-Object { $_ -match '^(COMPOSE_PROJECT_NAME|DPP_REPO_BASE_URL|DPP_REGISTRY_BASE_URL)=' }) -join "`n"
+)
+$project = $demoConfig.COMPOSE_PROJECT_NAME
+Write-Host "Using Compose project: $project"
+$env:DPP_REPO_BASE_URL = $demoConfig.DPP_REPO_BASE_URL
+$env:DPP_REGISTRY_BASE_URL = $demoConfig.DPP_REGISTRY_BASE_URL
+& (Join-Path $demoDir "manage-java-services.ps1") -Action Start -EnvFile $envFile
 ```
+
+The two endpoint variables make the live Python test commands below use the same repository and
+registry URLs selected in `.env`.
+
+### If Windows PowerShell blocks scripts
+
+Do not change your execution policy. Use these native Docker Compose commands instead; they reuse
+the same `.env` file, project name, ports, images, and endpoint variables prepared above.
+
+```powershell
+docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile config --quiet
+docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile pull --policy missing
+docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile up -d --wait --wait-timeout 120
+Invoke-RestMethod "$($env:DPP_REPO_BASE_URL)/health"
+Invoke-RestMethod "$($env:DPP_REGISTRY_BASE_URL)/health"
+```
+
+Both health results must report `status: UP`. For project-scoped status, logs, stopping, and volume
+deletion without the script, use the native Compose commands in the demo [operations reference](examples/java-services-demo/OPERATIONS.md).
 
 ### 2. Run Python unit and controlled tests only
 
@@ -311,8 +347,17 @@ Run these from the same repository root when PowerShell is not your shell. They 
 reusable lifecycle script and service-test boundary as the PowerShell commands above.
 
 ```bash
-project="dpp-java-services-demo-$$"
-pwsh -File ./examples/java-services-demo/manage-java-services.ps1 -Action Start -Project "$project"
+demo_dir="$(pwd)/examples/java-services-demo"
+env_file="$demo_dir/.env"
+if [ ! -f "$env_file" ]; then
+  cp "$demo_dir/.env.example" "$env_file"
+  printf '%s\n' "Created $env_file. Edit COMPOSE_PROJECT_NAME and paired port/base-URL values before starting."
+fi
+project="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$env_file" | head -n 1)"
+printf 'Using Compose project: %s\n' "$project"
+export DPP_REPO_BASE_URL="$(sed -n 's/^DPP_REPO_BASE_URL=//p' "$env_file" | head -n 1)"
+export DPP_REGISTRY_BASE_URL="$(sed -n 's/^DPP_REGISTRY_BASE_URL=//p' "$env_file" | head -n 1)"
+pwsh -File "$demo_dir/manage-java-services.ps1" -Action Start -EnvFile "$env_file"
 
 # Python unit and controlled tests only — no Docker or Java service calls.
 .venv/bin/python -m pytest ./tests -m "not integration"
@@ -325,23 +370,41 @@ pwsh -File ./examples/java-services-demo/manage-java-services.ps1 -Action Start 
 
 ### Run the optional Java services from another location
 
-**What this does:** starts an isolated repository-and-registry stack from pinned public images; it
+**What this does:** starts an isolated repository-and-registry stack from published Java repository
+and registry images selected by `.env`; it
 does not need a Java source checkout. Copy the complete `examples/java-services-demo` directory
 (the script needs its adjacent `compose.yaml` and `env/` profiles) wherever you want to run the
-stack, then use PowerShell 7+ with a project name you own:
+stack. Copy `.env.example` to `.env`, then edit `COMPOSE_PROJECT_NAME` and paired port/base-URL
+values before starting it:
 
 ```powershell
-pwsh -File .\java-services-demo\manage-java-services.ps1 -Action Start -Project my-dpp-demo
+$demoDir = (Resolve-Path .\java-services-demo).Path
+$envFile = Join-Path $demoDir ".env"
+if (-not (Test-Path -LiteralPath $envFile)) {
+  Copy-Item (Join-Path $demoDir ".env.example") $envFile
+}
+pwsh -File (Join-Path $demoDir "manage-java-services.ps1") -Action Start -EnvFile $envFile
+```
+
+Linux/macOS (with PowerShell 7 installed):
+
+```bash
+demo_dir="$(cd ./java-services-demo && pwd)"
+env_file="$demo_dir/.env"
+if [ ! -f "$env_file" ]; then
+  cp "$demo_dir/.env.example" "$env_file"
+fi
+pwsh -File "$demo_dir/manage-java-services.ps1" -Action Start -EnvFile "$env_file"
 ```
 
 The script validates the Compose profile, pulls missing images, starts the project, and checks
 both service health endpoints. The [demo guide](examples/java-services-demo/README.md) owns the
 labelled status, logs, stop, deletion, and educational-demo commands.
 
-When that optional stack is running, open `http://localhost:8080/` or
-`http://localhost:8081/` in a browser for the Java service Swagger UI. Use `/health` for a simple
-health check and `/v3/api-docs` for the service OpenAPI JSON. These are Java demo service endpoints,
-not endpoints provided by the Python package.
+When that optional stack is running, open the repository or registry URL configured in `.env` in a
+browser for the Java service Swagger UI. The `.env.example` default URLs are `http://localhost:18080/`
+and `http://localhost:18081/`. Use `/health` for a simple health check and `/v3/api-docs` for the
+service OpenAPI JSON. These are Java demo service endpoints, not endpoints provided by the Python package.
 
 ## Documentation and next steps
 

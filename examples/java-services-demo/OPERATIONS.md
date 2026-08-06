@@ -9,13 +9,16 @@ SDK-only walkthrough, Docker startup, every demo mode, logs, stopping, and delet
 
 | Profile | Use | Status |
 |---|---|---|
-| `pinned.env` | Reproducible default with immutable tag-plus-digest images | Maintained |
-| `0.5.0.env` | Semantic-version images | Maintained |
+| `.env` | Your ignored local project name, ports, and current `0.5.1` images | Default after copying `.env.example` |
+| `0.5.1.env` | Current default semantic-version images | Maintained |
+| `pinned.env` | Previous reproducible tag-plus-digest evidence | Historical |
+| `0.5.0.env` | Previous semantic-version evidence | Historical |
 | `0.4.0.env` | Legacy compatibility evidence; requires `--legacy` | Informational |
 
-Select a different profile by assigning `$envFile` or `env_file` before Compose startup and passing
-the same path to every Compose/demo command. A missing profile is a configuration failure; it is not
-silently replaced.
+Copy `.env.example` to `.env` first, then set `COMPOSE_PROJECT_NAME` and paired host ports/base
+URLs there. The lifecycle script uses `.env` by default; select a committed profile explicitly with
+`$envFile` or `env_file` when needed. A missing profile is a configuration failure; it is not silently
+replaced.
 
 `demo` is the small live educational journey. `full` is the broad repository/registry health check,
 and `verify` additionally requires exact-wheel provenance and runtime image identity. The older
@@ -26,7 +29,7 @@ certification.
 
 ## Alternate ports
 
-Change each container port together with its public base URL before `config`, `pull`, or `up`.
+Change each container port together with its public base URL in `.env` before `config`, `pull`, or `up`.
 
 PowerShell:
 
@@ -116,7 +119,7 @@ Copy a report elsewhere before removing `$report` or `"$report"` when evidence m
 
 The `0.4.0.env` profile requires explicit `--legacy` on demo commands. Legacy runs are informational
 and do not satisfy the maintained strict-verification gate. Keep their reports separate from current
-`pinned.env` or `0.5.0.env` evidence.
+`0.5.1.env` evidence.
 
 ## CI and reports
 

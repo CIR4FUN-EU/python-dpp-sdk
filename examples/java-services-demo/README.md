@@ -26,22 +26,23 @@ You need:
 - PowerShell 7 or newer (`pwsh`) for the labelled service lifecycle commands;
 - access to the public images named by the selected environment profile.
 
-The default `pinned.env` profile uses immutable image references. The services and database volumes
-created below are disposable. Do not use shared endpoints or production credentials.
+Copy `.env.example` to an ignored local `.env` before starting Docker. It configures the maintained
+Java `0.5.1` image references and alternate host ports for this project. The later Start command pulls
+missing configured images and starts the services. The services and database volumes created below are
+disposable. Do not use shared endpoints or production credentials.
 
-## Quick command map
+## Choose your goal
 
-Run the sections in this order:
+| Goal | Start here | Then run |
+| --- | --- | --- |
+| Learn the local SDK | [Steps 1–6](#step-6-run-the-sdk-only-educational-walkthrough) | `sdk`; no Docker required. |
+| Present a curated connected workflow | [Steps 1–9](#step-9--run-the-live-integration-educational-walkthrough) | `demo`; detailed educational output. |
+| Run the broad functional health check | [Steps 1–10](#step-10--run-optional-technical-modes) | `full`; use `full --detailed` for the full operation evidence. |
+| Collect exhaustive technical evidence | [Steps 1–10](#step-10--run-optional-technical-modes) | `verify`; includes strict wheel, controlled, and runtime-image evidence. |
 
-1. Prepare Python and build both wheels.
-2. Force-install those exact wheels and check the installed CLI.
-3. Run `sdk` without Docker.
-4. Start one isolated Docker project with the labelled lifecycle script.
-5. Run `demo`, `full`, and finally `verify`.
-6. Inspect logs.
-7. Choose whether to keep or delete the demo database volumes.
-
-The PowerShell journey is first. A complete Linux/macOS equivalent follows it.
+This is the reproducible-validation route: it builds and force-installs the exact wheels intentionally,
+so a same-version stale installation cannot change the result. The PowerShell journey is first. A complete
+Linux/macOS equivalent follows it.
 
 ## PowerShell: complete walkthrough
 
@@ -76,7 +77,7 @@ if (-not (Test-Path .\.venv\Scripts\python.exe)) {
 Expected wheel paths for the current versions:
 
 ```text
-dist/dpp_sdk-0.2.1-py3-none-any.whl
+dist/dpp_sdk-0.4.0-py3-none-any.whl
 examples/java-services-demo/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
 ```
 
@@ -89,7 +90,7 @@ without `--force-reinstall`, pip can retain an old SDK or demo package after you
 
 ```powershell
 $demoPython = (Join-Path (Resolve-Path .).Path ".java-services-demo-venv\Scripts\python.exe")
-$sdkWheel = (Resolve-Path .\dist\dpp_sdk-0.2.1-py3-none-any.whl).Path
+$sdkWheel = (Resolve-Path .\dist\dpp_sdk-0.4.0-py3-none-any.whl).Path
 $demoWheel = (Resolve-Path .\examples\java-services-demo\dist\dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl).Path
 
 if (-not (Test-Path $demoPython)) {
@@ -149,10 +150,19 @@ invalid input at the documented boundary; that is successful educational evidenc
 Use a unique project name so every lifecycle command targets only this walkthrough:
 
 ```powershell
-$project = "dpp-java-services-demo-$PID"
 $serviceScript = (Resolve-Path .\examples\java-services-demo\manage-java-services.ps1).Path
 $composeFile = (Resolve-Path .\examples\java-services-demo\compose.yaml).Path
-$envFile = (Resolve-Path .\examples\java-services-demo\env\pinned.env).Path
+$envFile = Join-Path (Resolve-Path .\examples\java-services-demo).Path ".env"
+if (Test-Path $envFile) { throw "Keep and edit the existing $envFile; do not overwrite it." }
+Copy-Item .\examples\java-services-demo\.env.example $envFile
+# Edit COMPOSE_PROJECT_NAME and paired port/base-URL values in $envFile before continuing.
+$demoConfig = ConvertFrom-StringData -StringData (
+  (Get-Content -LiteralPath $envFile |
+    Where-Object { $_ -match '^(COMPOSE_PROJECT_NAME|DPP_REPO_BASE_URL|DPP_REGISTRY_BASE_URL)=' }) -join "`n"
+)
+$project = $demoConfig.COMPOSE_PROJECT_NAME
+$env:DPP_REPO_BASE_URL = $demoConfig.DPP_REPO_BASE_URL
+$env:DPP_REGISTRY_BASE_URL = $demoConfig.DPP_REGISTRY_BASE_URL
 $report = Join-Path ([System.IO.Path]::GetTempPath()) "dpp-java-services-demo-$PID.json"
 ```
 
@@ -163,12 +173,27 @@ local, starts the named project, waits for Compose readiness, and verifies both 
 endpoints. It does not touch any other Compose project.
 
 ```powershell
-& $serviceScript -Action Start -Project $project -EnvFile $envFile
+& $serviceScript -Action Start -EnvFile $envFile
+```
+
+### If Windows PowerShell blocks scripts
+
+Do not change your execution policy. Run the following native Docker Compose fallback; it uses the
+same `.env`, project, images, ports, and endpoint variables created above.
+
+```powershell
+docker compose -f $composeFile -p $project --env-file $envFile config --quiet
+docker compose -f $composeFile -p $project --env-file $envFile pull --policy missing
+docker compose -f $composeFile -p $project --env-file $envFile up -d --wait --wait-timeout 120
+Invoke-RestMethod "$($env:DPP_REPO_BASE_URL)/health"
+Invoke-RestMethod "$($env:DPP_REGISTRY_BASE_URL)/health"
 ```
 
 Expected services are `dpp-repo-db`, `dpp-repo-api`, `dpp-registry-db`, and
 `dpp-registry-api`. Both health results must show `status: UP`. Do not run live demos if startup or
-readiness fails; capture logs first.
+readiness fails; capture logs first. Status shows service names such as `dpp-repo-api` and
+project-prefixed container names such as `dpp-java-services-demo-local-dpp-repo-api-1`. The prefix
+prevents separate demo projects from colliding; it does not hide the service.
 
 ### Step 9 — Run the live integration educational walkthrough
 
@@ -178,12 +203,14 @@ Detailed connected journey:
 & $demoPython -I -m dpp_java_services_demo demo --env-file $envFile
 ```
 
-The same evidence as strict JSON, retained in a temporary report:
+Save the same educational JSON evidence in a temporary report:
 
 ```powershell
 & $demoPython -I -m dpp_java_services_demo demo `
   --env-file $envFile --json --report-file $report
 ```
+
+Use `verify` for strict package, controlled, and image evidence.
 
 The journey shows each input, public SDK operation, Java service interaction, observed response,
 persistence proof, explanation, consumer value, and status. It deletes its repository DPP and proves
@@ -193,6 +220,8 @@ or cleanup operation (`REG-09` and `REG-10` are explicitly excluded).
 ### Step 10 — Run optional technical modes
 
 Broad repository and registry health check:
+
+The default is concise and grouped. Use `--detailed` when you need the full operation evidence.
 
 ```powershell
 & $demoPython -I -m dpp_java_services_demo full --env-file $envFile
@@ -223,8 +252,8 @@ installed-wheel provenance and Docker runtime image identity and returns nonzero
 when startup or verification fails.
 
 ```powershell
-& $serviceScript -Action Status -Project $project -EnvFile $envFile
-& $serviceScript -Action Logs -Project $project -EnvFile $envFile
+& $serviceScript -Action Status -EnvFile $envFile
+& $serviceScript -Action Logs -EnvFile $envFile
 ```
 
 ### Step 12 — Stop the project and keep database volumes
@@ -233,7 +262,7 @@ when startup or verification fails.
 database volumes, so the project can be restarted later with the same state.
 
 ```powershell
-& $serviceScript -Action Stop -Project $project -EnvFile $envFile
+& $serviceScript -Action Stop -EnvFile $envFile
 ```
 
 ### Step 13 — Stop the project and delete database volumes
@@ -242,7 +271,7 @@ database volumes, so the project can be restarted later with the same state.
 registry database volumes. The explicit `-ConfirmDelete` prevents an accidental volume deletion.
 
 ```powershell
-& $serviceScript -Action Delete -ConfirmDelete -Project $project -EnvFile $envFile
+& $serviceScript -Action Delete -ConfirmDelete -EnvFile $envFile
 Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
 ```
 
@@ -252,6 +281,10 @@ Never substitute the name of a shared or user-owned Compose project.
 ## Linux/macOS: complete walkthrough
 
 Run from the repository root.
+
+This is a Bash walkthrough and requires PowerShell 7 (`pwsh`) for the labelled lifecycle commands.
+If `pwsh` is unavailable, use the native Docker Compose diagnosis and cleanup commands in the
+[operations reference](OPERATIONS.md); do not mix their shell syntax into the commands below.
 
 ### 1 — Prepare, build, and install exact wheels
 
@@ -263,7 +296,7 @@ test -x .venv/bin/python || python -m venv .venv
   --outdir ./examples/java-services-demo/dist
 
 demo_python="$(pwd)/.java-services-demo-venv/bin/python"
-sdk_wheel="$(pwd)/dist/dpp_sdk-0.2.1-py3-none-any.whl"
+sdk_wheel="$(pwd)/dist/dpp_sdk-0.4.0-py3-none-any.whl"
 demo_wheel="$(pwd)/examples/java-services-demo/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl"
 
 test -x "$demo_python" || .venv/bin/python -m venv ./.java-services-demo-venv
@@ -290,13 +323,16 @@ Both imports must resolve under `.java-services-demo-venv`; help must list `demo
 project, and checks both public health endpoints without touching another Compose project.
 
 ```bash
-project="dpp-java-services-demo-$$"
 demo_dir="$(pwd)/examples/java-services-demo"
 service_script="$demo_dir/manage-java-services.ps1"
 compose_file="$demo_dir/compose.yaml"
-env_file="$demo_dir/env/pinned.env"
+env_file="$demo_dir/.env"
+test ! -e "$env_file" || { echo "Keep and edit the existing $env_file; do not overwrite it."; exit 1; }
+cp "$demo_dir/.env.example" "$env_file"
+# Edit COMPOSE_PROJECT_NAME and paired port/base-URL values in "$env_file" before continuing.
+project="dpp-java-services-demo-local" # keep this equal to COMPOSE_PROJECT_NAME in "$env_file"
 report="$(mktemp -t dpp-java-services-demo-XXXXXX.json)"
-pwsh -File "$service_script" -Action Start -Project "$project" -EnvFile "$env_file"
+pwsh -File "$service_script" -Action Start -EnvFile "$env_file"
 ```
 
 ### 4 — Run each live mode
@@ -319,20 +355,20 @@ pwsh -File "$service_script" -Action Start -Project "$project" -EnvFile "$env_fi
 Show project status and logs:
 
 ```bash
-pwsh -File "$service_script" -Action Status -Project "$project" -EnvFile "$env_file"
-pwsh -File "$service_script" -Action Logs -Project "$project" -EnvFile "$env_file"
+pwsh -File "$service_script" -Action Status -EnvFile "$env_file"
+pwsh -File "$service_script" -Action Logs -EnvFile "$env_file"
 ```
 
 Stop but keep database volumes:
 
 ```bash
-pwsh -File "$service_script" -Action Stop -Project "$project" -EnvFile "$env_file"
+pwsh -File "$service_script" -Action Stop -EnvFile "$env_file"
 ```
 
 Delete database volumes and the temporary report permanently:
 
 ```bash
-pwsh -File "$service_script" -Action Delete -ConfirmDelete -Project "$project" -EnvFile "$env_file"
+pwsh -File "$service_script" -Action Delete -ConfirmDelete -EnvFile "$env_file"
 rm -f "$report"
 ```
 
