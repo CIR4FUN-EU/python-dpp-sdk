@@ -6,6 +6,8 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.4.0]
+
 ### Added
 - An isolated `examples/java-services-demo` consumer project with reproducible Java image
   profiles, pull-only memory-mode Compose infrastructure, SDK-01 through SDK-17, complete public
@@ -69,9 +71,9 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 - Legacy registry aliases and the unversioned product-ID history route are retained compatibility
   surfaces only. New integrations should use canonical field names and versioned routes.
 
-## [0.2.1] — Current package baseline
+## [0.2.1] — Previous package baseline
 
-- Package metadata and `dpp_sdk.__version__` identify this checkout as `0.2.1`.
+- Package metadata and `dpp_sdk.__version__` identified the preceding checkout as `0.2.1`.
 - This repository checkout contains no local release tag for `0.2.1`; commit history remains
   the provenance source for changes predating the current unreleased section.
 
@@ -90,6 +92,7 @@ First public release of the Python port of the Java DPP SDK.
 - `dpp_sdk.clients` — `httpx`-based HTTP clients for the DPP repository and registry APIs.
 - Packaging: PEP 621 `pyproject.toml`, `src/` layout, `py.typed` marker, sdist + wheel build.
 
-[Unreleased]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/CIR4FUN-EU/dpp-sdk-python/releases/tag/v0.4.0
 [0.1.1]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CIR4FUN-EU/dpp-sdk-python/releases/tag/v0.1.0

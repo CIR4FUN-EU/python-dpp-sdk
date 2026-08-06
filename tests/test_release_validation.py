@@ -14,6 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_CHECKS = ROOT / "scripts" / "release_checks.py"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+JAVA_SERVICES_WORKFLOW = ROOT / ".github" / "workflows" / "java-services-demo.yml"
 
 
 def _release_checks():
@@ -156,6 +157,30 @@ def test_package_version_cli_reports_the_current_package_version(
     checks = _release_checks()
     assert checks.main(["package-version"]) == 0
     assert capsys.readouterr().out.strip() == _current_package_version()
+
+
+def test_0_4_0_release_surface_keeps_exact_sdk_consumers_in_sync() -> None:
+    package = (ROOT / "src" / "dpp_sdk" / "__init__.py").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    demo_pyproject = (ROOT / "examples" / "java-services-demo" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    demo_readme = (ROOT / "examples" / "java-services-demo" / "README.md").read_text(
+        encoding="utf-8"
+    )
+    workflow = JAVA_SERVICES_WORKFLOW.read_text(encoding="utf-8")
+
+    assert '__version__ = "0.4.0"' in package
+    assert "## [0.4.0]" in changelog
+    assert "dpp-sdk==0.4.0" in root_readme
+    assert "dpp-sdk~=0.4.0" in root_readme
+    assert 'dependencies = ["dpp-sdk==0.4.0", "httpx>=0.27"]' in demo_pyproject
+    assert "dpp_sdk-0.4.0-py3-none-any.whl" in demo_readme
+    assert "dpp_sdk-0.4.0-py3-none-any.whl" in workflow
+    assert "default: 0.5.1" in workflow
+    assert "          - 0.5.1" in workflow
+    assert "env/0.5.1.env" in workflow
 
 
 def test_release_workflow_requires_all_quality_gates_before_publish() -> None:

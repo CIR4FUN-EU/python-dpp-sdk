@@ -6,9 +6,10 @@ on:
       profile:
         description: Java image profile
         required: true
-        default: pinned
+        default: 0.5.1
         type: choice
         options:
+          - 0.5.1
           - pinned
           - 0.5.0
           - 0.4.0
@@ -38,7 +39,7 @@ jobs:
           python -m build "$DEMO_DIR" --outdir "$DEMO_DIR/dist"
           python -m venv .java-services-demo-venv
           .java-services-demo-venv/bin/python -m pip install \
-            dist/dpp_sdk-0.2.1-py3-none-any.whl \
+            dist/dpp_sdk-0.4.0-py3-none-any.whl \
             "$DEMO_DIR"/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
           .java-services-demo-venv/bin/python -m pip check
 
@@ -57,7 +58,7 @@ jobs:
         run: |
           mkdir -p artifacts
           outside="$(mktemp -d)"
-          sdk_wheel="$GITHUB_WORKSPACE/dist/dpp_sdk-0.2.1-py3-none-any.whl"
+          sdk_wheel="$GITHUB_WORKSPACE/dist/dpp_sdk-0.4.0-py3-none-any.whl"
           report="$GITHUB_WORKSPACE/artifacts/verification-report-${{ inputs.profile }}.json"
           set +e
           if [ "${{ inputs.profile }}" = "0.4.0" ]; then
@@ -77,10 +78,10 @@ jobs:
 
           if [ "${{ inputs.profile }}" = "pinned" ]; then
             policy="$(.java-services-demo-venv/bin/python -c 'import json,sys; from dpp_java_services_demo.workflow_policy import classify_pinned_report; print(classify_pinned_report(json.load(open(sys.argv[1]))))' "$report")"
-            if [ "$policy" = "RUN_050" ]; then
+            if [ "$policy" = "RUN_051" ]; then
               docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
                 down --remove-orphans
-              DEMO_ENV_FILE="$GITHUB_WORKSPACE/$DEMO_DIR/env/0.5.0.env"
+              DEMO_ENV_FILE="$GITHUB_WORKSPACE/$DEMO_DIR/env/0.5.1.env"
               echo "DEMO_ENV_FILE=$DEMO_ENV_FILE" >> "$GITHUB_ENV"
               docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" pull
               docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
@@ -89,7 +90,7 @@ jobs:
               (cd "$outside" && "$GITHUB_WORKSPACE/.java-services-demo-venv/bin/python" -I \
                 -m dpp_java_services_demo verify --env-file "$DEMO_ENV_FILE" \
                 --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
-                --report-file "$GITHUB_WORKSPACE/artifacts/verification-report-0.5.0.json")
+                --report-file "$GITHUB_WORKSPACE/artifacts/verification-report-0.5.1.json")
               rmdir "$outside"
               exit 0
             fi
