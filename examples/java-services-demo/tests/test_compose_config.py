@@ -4,8 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from dpp_java_services_demo.config import load_config
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PINNED_REPO = (
     "ghcr.io/cir4fun-eu/dpp-repo-api:"
@@ -76,20 +74,20 @@ def test_pinned_profile_uses_approved_tag_plus_digest_references() -> None:
     assert values["DPP_REGISTRY_BACKEND"] == "postgres"
 
 
-def test_maintained_and_legacy_profiles_have_distinct_policy() -> None:
-    maintained = _profile_values("0.5.0.env")
+def test_current_maintained_and_legacy_profiles_have_distinct_policy() -> None:
+    maintained = _profile_values("0.5.1.env")
     legacy = _profile_values("0.4.0.env")
     legacy_text = (PROJECT_ROOT / "env" / "0.4.0.env").read_text(encoding="utf-8")
 
-    assert maintained["DPP_REPO_IMAGE"].endswith(":0.5.0")
-    assert maintained["DPP_REGISTRY_IMAGE"].endswith(":0.5.0")
+    assert maintained["DPP_REPO_IMAGE"].endswith(":0.5.1")
+    assert maintained["DPP_REGISTRY_IMAGE"].endswith(":0.5.1")
     assert legacy["DPP_REPO_IMAGE"].endswith(":0.4.0")
     assert legacy["DPP_REGISTRY_IMAGE"].endswith(":0.4.0")
     assert "optional legacy compatibility" in legacy_text.lower()
     assert "non-blocking" in legacy_text.lower()
 
 
-@pytest.mark.parametrize("profile", ("pinned.env", "0.5.0.env", "0.4.0.env"))
+@pytest.mark.parametrize("profile", ("pinned.env", "0.5.1.env", "0.5.0.env", "0.4.0.env"))
 def test_profiles_supply_java_postgres_runtime_defaults(profile: str) -> None:
     values = _profile_values(profile)
 
@@ -103,9 +101,8 @@ def test_profiles_supply_java_postgres_runtime_defaults(profile: str) -> None:
     assert values["MOCK_REGISTRY_POSTGRES_PORT"] == "5434"
 
 
-def test_default_configuration_is_the_pinned_profile() -> None:
-    config = load_config()
+def test_current_maintained_profile_is_0_5_1() -> None:
+    values = _profile_values("0.5.1.env")
 
-    assert config.env_file == (PROJECT_ROOT / "env" / "pinned.env").resolve()
-    assert config.repo_image == PINNED_REPO
-    assert config.registry_image == PINNED_REGISTRY
+    assert values["DPP_REPO_IMAGE"] == "ghcr.io/cir4fun-eu/dpp-repo-api:0.5.1"
+    assert values["DPP_REGISTRY_IMAGE"] == "ghcr.io/cir4fun-eu/dpp-registry-api:0.5.1"

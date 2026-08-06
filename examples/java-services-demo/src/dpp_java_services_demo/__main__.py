@@ -229,7 +229,7 @@ def _image_results(
         ),
         ScenarioResult(
             scenario_id="IMG-02",
-            name="Maintained 0.5.0 identity comparison",
+            name="Maintained 0.5.1 identity comparison",
             category="IMAGE_IDENTITY",
             status=(
                 ScenarioStatus.PASSED
@@ -240,7 +240,7 @@ def _image_results(
             summary=(
                 "Image comparison classified SAME_BUILD"
                 if identity.equivalence.value == "SAME_BUILD"
-                else "DIFFERENT_BUILD requires a separate full maintained 0.5.0 verification"
+                else "DIFFERENT_BUILD requires a separate full maintained 0.5.1 verification"
             ),
             details=(
                 f"repository={identity.maintained_repo_digest}; "
@@ -448,13 +448,15 @@ def _annotate_live_payload(
 ) -> dict[str, object]:
     """Attach request identity without changing the evidence captured by the runner."""
 
-    return {
+    annotated = {
         **payload,
         "canonical_mode": resolution.canonical,
         "requested_mode": resolution.requested,
-        "compatibility_alias": resolution.compatibility_alias or None,
         "scenario_selection": "curated" if resolution.profile == "demo" else "legacy_connected",
     }
+    if resolution.compatibility_alias:
+        annotated["compatibility_alias"] = resolution.compatibility_alias
+    return annotated
 
 
 def main(argv: Sequence[str] | None = None) -> int:

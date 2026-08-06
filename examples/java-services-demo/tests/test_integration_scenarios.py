@@ -402,6 +402,26 @@ def test_integration_payload_distinguishes_runtime_identity_from_configured_refe
     assert payload["services"]["registry"]["runtime_digest"] == "sha256:" + "d" * 64
 
 
+def test_integration_output_explains_unavailable_runtime_identity() -> None:
+    identity = DemoIdentity.from_run_id(UUID("12345678-1234-5678-9234-567812345678"))
+    repository = _StatefulRepository()
+    report = run_integration_scenarios(
+        identity,
+        _config(),
+        repository=repository,
+        registry=_StatefulRegistry(repository),
+        image_identity_error=(
+            "ImageInspectionError: configured image does not match the running container"
+        ),
+    )
+
+    payload = integration_payload(report)
+    rendered = render_integration_text(report)
+
+    assert payload["runtime_identity"]["status"] == "NOT_CAPTURED"
+    assert "configured image does not match the running container" in rendered
+
+
 def test_integration_report_has_complete_bounded_teaching_evidence_in_text_and_json() -> None:
     identity = DemoIdentity.from_run_id(UUID("12345678-1234-5678-9234-567812345678"))
     repository = _StatefulRepository()

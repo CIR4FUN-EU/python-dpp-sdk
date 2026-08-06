@@ -700,6 +700,10 @@ def integration_payload(report: IntegrationReport) -> dict[str, object]:
             },
         },
         "image_identity_error": report.image_identity_error,
+        "runtime_identity": {
+            "status": "CAPTURED" if report.image_identity else "NOT_CAPTURED",
+            "reason": report.image_identity_error or "No Compose project was supplied for capture.",
+        },
         "steps": steps,
         "summary": {
             "total": len(steps),
@@ -759,6 +763,8 @@ def render_integration_text(report: IntegrationReport) -> str:
         f"  repository: {payload['services']['repository']['runtime_digest']}",
         f"  registry: {payload['services']['registry']['runtime_digest']}",
     ]
+    if payload["runtime_identity"]["status"] == "NOT_CAPTURED":
+        lines.append(f"  reason: {payload['runtime_identity']['reason']}")
     stage_headings = {
         "environment": "Environment and readiness",
         "local": "Local DPP preparation",

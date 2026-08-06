@@ -49,6 +49,14 @@ def test_mode_resolution_preserves_legacy_behavior(
     assert resolution.profile == profile
 
 
+def test_live_payload_omits_alias_for_canonical_mode() -> None:
+    canonical = cli._annotate_live_payload({"mode": "demo"}, cli.resolve_mode("demo"))
+    alias = cli._annotate_live_payload({"mode": "integration"}, cli.resolve_mode("integration"))
+
+    assert "compatibility_alias" not in canonical
+    assert alias["compatibility_alias"] == "integration"
+
+
 def test_full_mode_forwards_detailed_to_its_renderer(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -399,7 +407,7 @@ def test_different_maintained_build_blocks_pinned_verification(
     assert "DIFFERENT_BUILD" in output
     assert "PYTHON_JAVA_SERVICES_INTEROPERABILITY_FAILED" in output
     assert "IMG-01 | Runtime image digest capture | IMAGE_IDENTITY | PASSED" in output
-    assert "IMG-02 | Maintained 0.5.0 identity comparison | IMAGE_IDENTITY | FAILED" in output
+    assert "IMG-02 | Maintained 0.5.1 identity comparison | IMAGE_IDENTITY | FAILED" in output
 
 
 def test_legacy_failure_is_informational(
@@ -455,12 +463,12 @@ def test_installed_sdk_provenance_is_bound_to_supplied_wheel(
     sdk_file = site_packages / "dpp_sdk" / "__init__.py"
     sdk_file.parent.mkdir(parents=True)
     sdk_file.write_text("", encoding="utf-8")
-    wheel = tmp_path / "dpp_sdk-0.2.1-py3-none-any.whl"
+    wheel = tmp_path / "dpp_sdk-0.4.0-py3-none-any.whl"
     wheel.write_bytes(b"exact wheel")
     digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
 
     class FakeDistribution:
-        version = "0.2.1"
+        version = "0.4.0"
 
         def locate_file(self, _path: str) -> Path:
             return site_packages

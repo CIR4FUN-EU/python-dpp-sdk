@@ -45,7 +45,7 @@ def _report(status: ScenarioStatus = ScenarioStatus.PASSED) -> DemoReport:
         ),
         summary="SDK capability demonstration completed",
         partial=False,
-        sdk_version="0.2.1",
+        sdk_version="0.4.0",
         sdk_location="/installed/site-packages/dpp_sdk/__init__.py",
         repo_image="repo@example",
         registry_image="registry@example",
@@ -73,12 +73,102 @@ def test_json_report_is_machine_readable_and_complete() -> None:
 
     assert payload["mode"] == "sdk"
     assert payload["run_id"] == "12345678-1234-5678-9234-567812345678"
-    assert payload["legacy_status"] == "LEGACY_COMPATIBILITY_NOT_RUN"
-    assert payload["sdk_version"] == "0.2.1"
+    assert payload["sdk_version"] == "0.4.0"
     assert result["scenario_id"] == "SDK-01"
     assert result["summary"] == "Complete fixture passed"
     assert result["teaching"]["operation"]["public_api"] == "Dpp4Fun"
     assert payload["teaching_schema_version"] == 1
+
+
+def test_sdk_json_omits_service_only_and_alias_placeholders() -> None:
+    payload = json.loads(render_json(_report()))
+
+    assert "repo_image" not in payload
+    assert "registry_image" not in payload
+    assert "repo_runtime_digest" not in payload
+    assert "sdk_wheel" not in payload
+    assert "compatibility_alias" not in payload
+
+
+def test_full_text_omits_inapplicable_empty_metadata_lines() -> None:
+    report = DemoReport(
+        **{
+            **_report().__dict__,
+            "mode": "full",
+            "canonical_mode": "full",
+            "requested_mode": "full",
+            "mode_verdict": "FULL_INTEGRATION_PASSED",
+            "results": (
+                ScenarioResult(
+                    scenario_id="REP-07",
+                    name="Bulk product identifier lookup",
+                    category="LIVE_050",
+                    status=ScenarioStatus.PASSED,
+                    duration_seconds=0.125,
+                    summary="Bulk lookup returned one identifier",
+                    details="bulk lookup returned 1 identifier",
+                ),
+            ),
+        }
+    )
+
+    rendered = render_text(report)
+
+    assert "sdk_wheel: " not in rendered
+    assert "repository_container:  ()" not in rendered
+    assert "registry_container:  ()" not in rendered
+
+
+def test_full_json_projects_each_result_as_a_bounded_operation() -> None:
+    report = DemoReport(
+        **{
+            **_report().__dict__,
+            "mode": "full",
+            "canonical_mode": "full",
+            "requested_mode": "full",
+            "mode_verdict": "FULL_INTEGRATION_PASSED",
+        }
+    )
+
+    payload = json.loads(render_json(report))
+
+    assert len(payload["operations"]) == 1
+    operation = payload["operations"][0]
+    assert operation["public_operation"]
+    assert operation["selected_input"]
+    assert operation["observed_result"]
+    assert operation["persistence_or_error_proof"]
+
+
+def test_full_text_renders_operation_evidence_and_detailed_explanation() -> None:
+    report = DemoReport(
+        **{
+            **_report().__dict__,
+            "mode": "full",
+            "canonical_mode": "full",
+            "requested_mode": "full",
+            "mode_verdict": "FULL_INTEGRATION_PASSED",
+            "results": (
+                ScenarioResult(
+                    scenario_id="REP-07",
+                    name="Bulk product identifier lookup",
+                    category="LIVE_050",
+                    status=ScenarioStatus.PASSED,
+                    duration_seconds=0.125,
+                    summary="Bulk lookup returned one identifier",
+                    details="bulk lookup returned 1 identifier",
+                ),
+            ),
+        }
+    )
+
+    concise = render_text(report)
+    detailed = render_text(report, detailed=True)
+
+    assert "operation: DppRepoClient.read_dpp_ids_by_product_ids" in concise
+    assert "result: bulk lookup returned 1 identifier" in concise
+    assert "explanation:" not in concise
+    assert "explanation:" in detailed
 
 
 def test_required_failures_include_failed_and_not_implemented() -> None:
@@ -104,6 +194,10 @@ def test_release_report_totals_metadata_cleanup_and_verdict_are_serialized() -> 
             "started_at": "2026-07-30T10:00:00Z",
             "ended_at": "2026-07-30T10:01:00Z",
             "verdict": InteroperabilityVerdict.PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED,
+            "mode": "verify",
+            "canonical_mode": "verify",
+            "requested_mode": "verify",
+            "mode_verdict": "STRICT_VERIFICATION_PASSED",
         }
     )
 

@@ -11,8 +11,8 @@ from enum import StrEnum
 
 from .config import DemoConfig
 
-_MAINTAINED_REPO_IMAGE = "ghcr.io/cir4fun-eu/dpp-repo-api:0.5.0"
-_MAINTAINED_REGISTRY_IMAGE = "ghcr.io/cir4fun-eu/dpp-registry-api:0.5.0"
+_MAINTAINED_REPO_IMAGE = "ghcr.io/cir4fun-eu/dpp-repo-api:0.5.1"
+_MAINTAINED_REGISTRY_IMAGE = "ghcr.io/cir4fun-eu/dpp-registry-api:0.5.1"
 _DIGEST_PATTERN = re.compile(r"\bsha256:[0-9a-fA-F]{64}\b")
 CommandRunner = Callable[[Sequence[str]], str]
 

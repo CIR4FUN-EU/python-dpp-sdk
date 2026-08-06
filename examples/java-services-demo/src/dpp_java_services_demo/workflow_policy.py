@@ -7,7 +7,7 @@ from typing import Any
 
 
 def classify_pinned_report(payload: Mapping[str, Any]) -> str:
-    """Return COMPLETE, RUN_050, or PINNED_FAILED for retained JSON data."""
+    """Return COMPLETE, RUN_051, or PINNED_FAILED for retained JSON data."""
 
     results = payload.get("results")
     if not isinstance(results, Sequence):
@@ -22,7 +22,7 @@ def classify_pinned_report(payload: Mapping[str, Any]) -> str:
     if blocking:
         return "PINNED_FAILED"
     if payload.get("image_equivalence") == "DIFFERENT_BUILD":
-        return "RUN_050"
+        return "RUN_051"
     img_02 = next(
         (
             result

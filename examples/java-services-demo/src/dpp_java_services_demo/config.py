@@ -31,9 +31,7 @@ class DemoConfig:
 
 def _project_root() -> Path:
     working_directory = Path.cwd().resolve()
-    if (working_directory / "compose.yaml").is_file() and (
-        working_directory / "env" / "pinned.env"
-    ).is_file():
+    if (working_directory / "compose.yaml").is_file() and (working_directory / ".env").is_file():
         return working_directory
     return Path(__file__).resolve().parents[2]
 
@@ -79,7 +77,7 @@ def load_config(env_file: Path | None = None, *, legacy: bool = False) -> DemoCo
     """Load one profile, with process environment values taking precedence."""
 
     if env_file is None:
-        path = _project_root() / "env" / "pinned.env"
+        path = _project_root() / ".env"
     elif env_file.is_absolute() or env_file.is_file():
         path = env_file
     else:

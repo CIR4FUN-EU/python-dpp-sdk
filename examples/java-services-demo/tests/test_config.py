@@ -136,18 +136,17 @@ def test_import_order_does_not_capture_environment_values(
     assert reloaded_module.load_config(env_file).repo_base_url == "http://localhost:18080"
 
 
-def test_installed_command_finds_profiles_in_the_demo_working_directory(
+def test_default_configuration_uses_local_dotenv_from_the_demo_working_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    env_directory = tmp_path / "env"
-    env_directory.mkdir()
-    _write_env(env_directory / "pinned.env")
+    dotenv = tmp_path / ".env"
+    _write_env(dotenv)
     (tmp_path / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
     config = load_config()
 
-    assert config.env_file == (env_directory / "pinned.env").resolve()
+    assert config.env_file == dotenv.resolve()
 
 
 def test_legacy_profile_requires_explicit_flag(tmp_path: Path) -> None:

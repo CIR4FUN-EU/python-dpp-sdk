@@ -9,7 +9,7 @@ from dpp_java_services_demo.workflow_policy import classify_pinned_report
     ("equivalence", "statuses", "expected"),
     [
         ("SAME_BUILD", ("PASSED", "PASSED"), "COMPLETE"),
-        ("DIFFERENT_BUILD", ("PASSED", "FAILED"), "RUN_050"),
+        ("DIFFERENT_BUILD", ("PASSED", "FAILED"), "RUN_051"),
         ("DIFFERENT_BUILD", ("FAILED", "FAILED"), "PINNED_FAILED"),
     ],
 )

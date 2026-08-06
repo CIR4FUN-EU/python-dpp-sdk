@@ -3,14 +3,13 @@ param(
     [ValidateSet("Start", "Status", "Logs", "Stop", "Delete")]
     [string]$Action = "Start",
 
-    [Parameter(Mandatory)]
-    [string]$Project,
+    [string]$Project = "",
 
     [string]$EnvFile = "",
 
-    [string]$RepoUrl = $(if ($env:DPP_REPO_BASE_URL) { $env:DPP_REPO_BASE_URL } else { "http://localhost:8080" }),
+    [string]$RepoUrl = "",
 
-    [string]$RegistryUrl = $(if ($env:DPP_REGISTRY_BASE_URL) { $env:DPP_REGISTRY_BASE_URL } else { "http://localhost:8081" }),
+    [string]$RegistryUrl = "",
 
     [ValidateRange(1, 600)]
     [int]$WaitTimeout = 120,
@@ -23,11 +22,40 @@ $ErrorActionPreference = "Stop"
 
 $composeFile = Join-Path $PSScriptRoot "compose.yaml"
 if (-not $EnvFile) {
-    $EnvFile = Join-Path $PSScriptRoot "env/pinned.env"
+    $EnvFile = Join-Path $PSScriptRoot ".env"
 }
 
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     throw "Environment profile does not exist: $EnvFile"
+}
+
+function Get-DemoEnvValue {
+    param([string]$Key)
+
+    foreach ($rawLine in Get-Content -LiteralPath $EnvFile) {
+        $line = $rawLine.Trim()
+        if (-not $line -or $line.StartsWith("#")) {
+            continue
+        }
+        $name, $value = $line.Split("=", 2)
+        if ($name.Trim() -eq $Key) {
+            return $value.Trim()
+        }
+    }
+    return ""
+}
+
+if (-not $Project) {
+    $Project = Get-DemoEnvValue -Key "COMPOSE_PROJECT_NAME"
+}
+if (-not $Project) {
+    throw "COMPOSE_PROJECT_NAME must be configured in $EnvFile or passed with -Project"
+}
+if (-not $RepoUrl) {
+    $RepoUrl = Get-DemoEnvValue -Key "DPP_REPO_BASE_URL"
+}
+if (-not $RegistryUrl) {
+    $RegistryUrl = Get-DemoEnvValue -Key "DPP_REGISTRY_BASE_URL"
 }
 
 function Invoke-DemoCompose {
