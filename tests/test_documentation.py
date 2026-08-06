@@ -19,7 +19,7 @@ MARKDOWN_FILES = (
     "docs/model-guide.md",
     "docs/validation-guide.md",
     "docs/validation-rules.md",
-    "docs/architecture/diagram-evidence.md",
+    "docs/diagram-evidence.md",
     "src/dpp_sdk/core/README.md",
     "src/dpp_sdk/dpp4fun/README.md",
     "src/dpp_sdk/clients/README.md",
@@ -93,7 +93,7 @@ COMMAND_DOCUMENTS = (
     "README.md",
     "RELEASING.md",
     "docs/usage.md",
-    "docs/architecture/diagram-evidence.md",
+    "docs/diagram-evidence.md",
     "src/dpp_sdk/core/README.md",
     "src/dpp_sdk/dpp4fun/README.md",
     "src/dpp_sdk/clients/README.md",
@@ -103,6 +103,13 @@ COMMAND_DOCUMENTS = (
 
 def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
+
+
+def test_maintained_documentation_does_not_require_the_parent_workspace_layout() -> None:
+    workspace_path = "Dpp-SDK-python/dpp-python-sdk"
+
+    for relative in MARKDOWN_FILES:
+        assert workspace_path not in _read(relative), relative
 
 
 def _anchor(value: str) -> str:
@@ -210,8 +217,9 @@ def _validate_root_command_convention(overrides: dict[str, str] | None = None) -
     )
     operations = _read("examples/java-services-demo/OPERATIONS.md")
     assert "from `examples/java-services-demo`" not in demo + operations
-    assert "docker compose -f $composeFile" in demo
-    assert 'docker compose -f "$compose_file"' in demo
+    assert "manage-java-services.ps1" in demo
+    assert "-Action Start" in demo
+    assert 'pwsh -File "$service_script" -Action Start' in demo
 
 
 def test_documentation_structure_links_examples_payloads_and_diagrams() -> None:
@@ -229,6 +237,42 @@ def test_documentation_structure_links_examples_payloads_and_diagrams() -> None:
     _validate_client_operations(_read("src/dpp_sdk/clients/README.md"))
     _validate_diagram_pairs(ROOT / "docs/architecture")
     _validate_root_command_convention()
+
+
+def test_demo_readme_makes_sdk_json_output_easy_to_inspect() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+
+    assert "sdk --json --report-file $sdkReport" in demo
+    assert "Get-Content $sdkReport -TotalCount 24" in demo
+
+
+def test_root_readme_has_quick_java_service_check_commands() -> None:
+    readme = _read("README.md")
+
+    assert "## Quick Java-service checks" in readme
+    assert "manage-java-services.ps1 -Action Start -Project $project" in readme
+    assert 'pytest .\\tests -m "not integration"' in readme
+    assert "tests\\test_integration_live.py --run-java-services" in readme
+    assert "examples\\java-services-demo\\tests --run-java-services" in readme
+    assert "successful Start command" in readme
+    assert "## Linux/macOS quick checks" in readme
+    assert 'project="dpp-java-services-demo-$$"' in readme
+    assert 'pytest ./tests -m "not integration"' in readme
+    assert "./tests/test_integration_live.py --run-java-services" in readme
+
+
+def test_demo_setup_defines_compose_variables_used_by_operations_reference() -> None:
+    demo = _read("examples/java-services-demo/README.md")
+    operations = _read("examples/java-services-demo/OPERATIONS.md")
+
+    compose_file_prefix = "$composeFile = (Resolve-Path "
+    compose_file_assignment = (
+        compose_file_prefix + ".\\examples\\java-services-demo\\compose.yaml).Path"
+    )
+    assert compose_file_assignment in demo
+    assert 'compose_file="$demo_dir/compose.yaml"' in demo
+    assert "$composeFile" in operations
+    assert "$compose_file" in operations
 
 
 def test_documentation_corruption_checks_fail_on_temporary_inputs(tmp_path: Path) -> None:
@@ -279,7 +323,7 @@ def test_installation_and_demo_commands_keep_their_working_directory_contracts()
     assert "dpp-java-services-demo-$$" in demo
     assert 'DPP_REPO_BASE_URL = "http://localhost:18080"' in operations
     assert "DPP_REPO_BASE_URL=http://localhost:18080" in operations
-    assert "down --volumes --remove-orphans" in demo
+    assert "-Action Delete -ConfirmDelete" in demo
     assert "only the project created by this guide" in demo
 
 
@@ -302,7 +346,7 @@ def test_command_guides_use_existing_relative_paths_and_separate_shells() -> Non
     assert "```bash" in demo
     assert 'python -m build --outdir "$build_root"' in release
     assert "python -m twine check" in release
-    assert 'compose_file="$demo_dir/compose.yaml"' in demo
+    assert 'service_script="$demo_dir/manage-java-services.ps1"' in demo
     assert not re.search(r"[A-Za-z]:\\\\", readme + release + demo + operations)
 
 
@@ -336,5 +380,31 @@ def test_demo_readme_keeps_cleanup_with_the_live_lifecycle_and_links_operations(
     assert "[operations reference](OPERATIONS.md)" in demo
     assert "Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue" in demo + operations
     assert 'rm -f "$report"' in demo + operations
-    assert "down --volumes --remove-orphans" in demo
+    assert "manage-java-services.ps1" in demo
+    assert "-Action Start" in demo
+    assert "-Action Stop" in demo
+    assert "-Action Delete -ConfirmDelete" in demo
     assert demo.count("--run-java-services") == 2
+    assert "-c .\\examples\\java-services-demo\\pyproject.toml" in demo
+    assert "-c ./examples/java-services-demo/pyproject.toml" in demo
+
+
+def test_demo_guides_distinguish_modes_and_document_stale_installation_evidence() -> None:
+    root = _read("README.md")
+    demo = _read("examples/java-services-demo/README.md")
+    operations = _read("examples/java-services-demo/OPERATIONS.md")
+
+    assert "SDK-only educational walkthrough" in root
+    assert "curated live demonstration" in root
+    assert "broad full health" in root
+    assert "strict verification" in root
+    assert "Copy the complete `examples/java-services-demo` directory" in root
+    assert "manage-java-services.ps1" in root
+    assert "same-version installation can still be stale" in demo
+    assert "pip show dpp-sdk dpp-sdk-java-services-demo" in demo
+    assert "Strict verification: NOT_RUN (separate command)." in demo
+    for text in (demo, operations):
+        assert "demo" in text
+        assert "full" in text
+        assert "verify" in text
+        assert "--compose-project" in text

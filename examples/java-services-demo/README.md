@@ -1,374 +1,400 @@
 # Python SDK Java-services demo
 
-This is an isolated, unpublished consumer of the public `dpp-sdk` package. Use it when you want to
-see the Python clients talk to disposable Java DPP repository and registry services. It adds no
-backend, persistence, Docker, demo-service, EDC, or dataspace responsibility to `dpp_sdk`.
-Compose starts the Java-compatible PostgreSQL containers required by the pulled Java API images; it
-does not add a Python persistence implementation.
+This optional consumer package has four primary modes. Start with the SDK-only walkthrough, then
+start Docker and choose the small live demonstration, broad health check, or strict verification.
 
-The CLI never pulls, starts, stops, or removes containers. The operator or CI workflow owns the
-entire Compose lifecycle.
+| Demo | Command | Docker | What it teaches |
+|---|---|---:|---|
+| SDK-only educational walkthrough | `sdk` | No | Models, validation, JSON codecs, immutable updates, expected errors, and controlled clients (`SDK-01 through SDK-17`) |
+| Curated live demonstration | `demo` | Yes | A small connected create, read, update, registry, expected-error, and cleanup journey |
+| Full functional integration | `full` | Yes | Every maintained repository and registry operation once, as a broad system-health check |
+| Strict verification | `verify` | Yes | SDK, controlled/live services, exact-wheel provenance, and runtime image identity |
 
-## Relationship to the SDK guides
+`integration`, `services`, and `all` remain compatibility aliases for existing automation. New
+commands should use the four primary modes above.
 
-This demo consumes the installed public SDK; it is not a service implementation or an extension of
-the `dpp_sdk` import package. Read [SDK usage](../../docs/usage.md) for SDK-only construction and
-codec examples, [Clients](../../src/dpp_sdk/clients/README.md) for the public repository and registry
-client operations exercised here, and the root [README](../../README.md) for scope and module links.
+**Run from:** the repository root—the directory containing the root `pyproject.toml`. Use that root,
+not the nested demo directory. Advanced profiles, alternate ports, CI behavior, and detailed
+diagnosis are in the [operations reference](OPERATIONS.md).
 
-## Compatibility and evidence policy
+## Before you start
 
-[`env/pinned.env`](env/pinned.env) is the required reproducible default and uses immutable
-tag-plus-digest references. [`env/0.5.0.env`](env/0.5.0.env) is the maintained semantic-version
-profile. Every `verify` run records the locally executed image digests, freshly resolves the
-remote `0.5.0` digests, and classifies them as `SAME_BUILD` or `DIFFERENT_BUILD`. Historical
-digest equality is never assumed.
+You need:
 
-> The demo is maintained against Java repository and registry version 0.5.0 and the recorded
-> immutable image digest. Version 0.4.0 is retained as an optional legacy compatibility target
-> and is not part of the maintained compatibility guarantee.
+- Python 3.11 or newer;
+- Docker Engine or Docker Desktop with Compose v2 for live modes;
+- PowerShell 7 or newer (`pwsh`) for the labelled service lifecycle commands;
+- access to the public images named by the selected environment profile.
 
-[`env/0.4.0.env`](env/0.4.0.env) requires `--legacy`. Its live scenarios are reported as
-`LEGACY_040`, and its aggregate outcome is exactly `LEGACY_COMPATIBILITY_PASSED` or
-`LEGACY_COMPATIBILITY_FAILED`; otherwise reports use `LEGACY_COMPATIBILITY_NOT_RUN`. A legacy
-failure is informational: it is not a current Python SDK defect, current contract mismatch,
-release blocker, or reason to add compatibility shims.
+The default `pinned.env` profile uses immutable image references. The services and database volumes
+created below are disposable. Do not use shared endpoints or production credentials.
 
-Passing these scenarios is interoperability evidence for the covered contracts, not a claim of
-100% compatibility.
+## Quick command map
 
-## Prerequisites and isolated installation
+Run the sections in this order:
 
-Choose the mode first:
+1. Prepare Python and build both wheels.
+2. Force-install those exact wheels and check the installed CLI.
+3. Run `sdk` without Docker.
+4. Start one isolated Docker project with the labelled lifecycle script.
+5. Run `demo`, `full`, and finally `verify`.
+6. Inspect logs.
+7. Choose whether to keep or delete the demo database volumes.
 
-| If you want to… | You need… |
-| --- | --- |
-| run the SDK-only checks | Python 3.11 or newer |
-| start local Java services, then run `services` or `all` | Python plus Docker Engine with Compose v2 and access to the public GHCR images |
-| run the complete `verify` check | the above plus Docker Buildx for the fresh image-digest lookup |
+The PowerShell journey is first. A complete Linux/macOS equivalent follows it.
 
-The root [README](../../README.md#prerequisites) lists the same split. Docker, Compose, Buildx,
-and GHCR access are not prerequisites for ordinary SDK use. **Run from:** the Python repository
-root. Every command in this guide uses a path relative to that root.
+## PowerShell: complete walkthrough
 
-Build both projects from the Python repository root, then install their wheels into a clean
-environment. **Prerequisites:** the root `.venv` development environment contains the configured
-build tool. This deliberately avoids an editable install or a root `src` path.
+### Step 1 — Open the repository root
 
-PowerShell:
+Confirm the current directory contains the root project and demo:
 
 ```powershell
-.\.venv\Scripts\python.exe -m build
-.\.venv\Scripts\python.exe -m build .\examples\java-services-demo `
+Get-Item .\pyproject.toml
+Get-Item .\examples\java-services-demo\pyproject.toml
+```
+
+### Step 2 — Prepare the development environment
+
+Create `.venv` only when it does not already exist, then install the build/test tools:
+
+```powershell
+if (-not (Test-Path .\.venv\Scripts\python.exe)) {
+  python -m venv .venv
+}
+& .\.venv\Scripts\python.exe -m pip install -e ".[dev,release]"
+```
+
+### Step 3 — Build the SDK and demo wheels
+
+```powershell
+& .\.venv\Scripts\python.exe -m build
+& .\.venv\Scripts\python.exe -m build .\examples\java-services-demo `
   --outdir .\examples\java-services-demo\dist
-.\.venv\Scripts\python.exe -m venv .\.java-services-demo-venv
-.\.java-services-demo-venv\Scripts\python.exe -m pip install `
-  .\dist\dpp_sdk-0.2.1-py3-none-any.whl `
-  .\examples\java-services-demo\dist\dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
 ```
 
-Linux/macOS:
+Expected wheel paths for the current versions:
 
-```bash
-.venv/bin/python -m build
-.venv/bin/python -m build ./examples/java-services-demo \
-  --outdir ./examples/java-services-demo/dist
-.venv/bin/python -m venv ./.java-services-demo-venv
-./.java-services-demo-venv/bin/python -m pip install \
-  ./dist/dpp_sdk-0.2.1-py3-none-any.whl \
-  ./examples/java-services-demo/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
+```text
+dist/dpp_sdk-0.2.1-py3-none-any.whl
+examples/java-services-demo/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl
 ```
 
-The nested distribution depends on `dpp-sdk==0.2.1`, contains only
-`dpp_java_services_demo`, and is not published. The root SDK wheel and source distribution
-exclude this entire example.
+If project versions change, use the filenames produced by the build instead.
 
-## Runner modes
+### Step 4 — Install the exact wheels
 
-| Mode | Executed evidence | Docker required |
-|---|---|---|
-| `sdk` | SDK-01 through SDK-15 | No |
-| `services` | REP-01 through REP-15 and REG-01 through REG-07 | Running services |
-| `all` | SDK scenarios followed by repository and registry scenarios | Running services |
-| `verify` | SDK, controlled REP-16–18/REG-08, live, installed-import, and image identity evidence | Running services |
-
-Expected negative cases are passed demonstrations when the exact contracted error occurs.
-`FAILED`, `SKIPPED`, and `NOT_IMPLEMENTED` are required verification failures. A maintained
-`verify` returns nonzero for any such result. Only the explicitly selected legacy profile makes
-scenario failures informational at process-exit level.
-
-SDK-only use:
+Create the disposable demo environment if needed. A same-version installation can still be stale:
+without `--force-reinstall`, pip can retain an old SDK or demo package after you build new wheels.
 
 ```powershell
-.\.java-services-demo-venv\Scripts\python.exe -m dpp_java_services_demo sdk
-.\.java-services-demo-venv\Scripts\python.exe -m dpp_java_services_demo sdk --json
+$demoPython = (Join-Path (Resolve-Path .).Path ".java-services-demo-venv\Scripts\python.exe")
+$sdkWheel = (Resolve-Path .\dist\dpp_sdk-0.2.1-py3-none-any.whl).Path
+$demoWheel = (Resolve-Path .\examples\java-services-demo\dist\dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl).Path
+
+if (-not (Test-Path $demoPython)) {
+  & .\.venv\Scripts\python.exe -m venv .\.java-services-demo-venv
+}
+& $demoPython -m pip install --force-reinstall $sdkWheel $demoWheel
 ```
 
-```bash
-./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk
-./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk --json
+### Step 5 — Prove the installation is current
+
+Do not start Docker until these checks succeed:
+
+```powershell
+& $demoPython -m pip check
+& $demoPython -m pip show dpp-sdk dpp-sdk-java-services-demo
+& $demoPython -I -c "import dpp_sdk, dpp_java_services_demo; print(dpp_sdk.__file__); print(dpp_java_services_demo.__file__)"
+& $demoPython -I -m dpp_java_services_demo --help
 ```
 
-These `sdk` commands do not read an environment profile or require Docker, Compose, service URLs,
-or image references. The `services`, `all`, and `verify` modes are service-dependent and require
-either `--env-file` or a discoverable local demo profile. For those modes, values resolve in this
-order: process environment overrides the selected environment profile, and the profile supplies
-the documented defaults. A missing service profile is reported as a mode-specific configuration
-error.
+Both import paths must be inside `.java-services-demo-venv\Lib\site-packages`. CLI help must list
+`sdk`, `demo`, `full`, and `verify`. If `demo` is absent, follow
+[Stale installation](#stale-installation) before continuing.
 
-## Pull, start, verify, capture, and stop
+### Step 6: Run the SDK-only educational walkthrough
 
-Compose mirrors the Java demo topology: public pulled repository and registry API images, plus
-disposable `postgres:16` containers for each API. The public image references always come from
-the selected `env/*.env` profile. The database names, users, and passwords are Java demo-local
-defaults only; do not use this stack with production credentials or shared endpoints.
+This mode does not read a service profile, contact Docker, or use the network.
 
-Compose derives container and volume names from the project name; it does not set fixed
-`container_name` values. Create a unique project name for each local run. Do not reuse a project
-you did not create. The teardown below removes only the project created by this guide.
+Detailed teaching output:
 
-PowerShell, from the Python repository root:
+```powershell
+& $demoPython -I -m dpp_java_services_demo sdk
+```
+
+Compact scenario summary:
+
+```powershell
+& $demoPython -I -m dpp_java_services_demo sdk --summary
+```
+
+Structured JSON (save it, then inspect the beginning):
+
+```powershell
+$sdkReport = Join-Path ([System.IO.Path]::GetTempPath()) "dpp-sdk-walkthrough.json"
+& $demoPython -I -m dpp_java_services_demo sdk --json --report-file $sdkReport
+Get-Content $sdkReport -TotalCount 24
+```
+
+The command still prints the complete JSON report. `$sdkReport` keeps the same report in your
+temporary-files directory so you can open it, search it, or attach it to an issue without adding a
+generated file to the repository.
+
+`PASS` means the intended operation completed. `EXPECTED_ERROR` means the SDK rejected deliberately
+invalid input at the documented boundary; that is successful educational evidence, not a failed run.
+
+### Step 7 — Configure one isolated Docker project
+
+Use a unique project name so every lifecycle command targets only this walkthrough:
 
 ```powershell
 $project = "dpp-java-services-demo-$PID"
+$serviceScript = (Resolve-Path .\examples\java-services-demo\manage-java-services.ps1).Path
 $composeFile = (Resolve-Path .\examples\java-services-demo\compose.yaml).Path
 $envFile = (Resolve-Path .\examples\java-services-demo\env\pinned.env).Path
-$report = Join-Path (Resolve-Path .\examples\java-services-demo).Path "verification-report.json"
-$demoPython = (Resolve-Path .\.java-services-demo-venv\Scripts\python.exe).Path
-$sdkWheel = (Resolve-Path .\dist\dpp_sdk-0.2.1-py3-none-any.whl).Path
-$repoUrl = if ($env:DPP_REPO_BASE_URL) { $env:DPP_REPO_BASE_URL } else { "http://localhost:8080" }
-$registryUrl = if ($env:DPP_REGISTRY_BASE_URL) { $env:DPP_REGISTRY_BASE_URL } else { "http://localhost:8081" }
-
-docker compose -f $composeFile -p $project --env-file $envFile pull
-docker compose -f $composeFile -p $project --env-file $envFile up -d --wait --wait-timeout 120
-docker compose -f $composeFile -p $project --env-file $envFile ps --all
-Invoke-WebRequest "$repoUrl/health" | Select-Object -ExpandProperty StatusCode
-Invoke-WebRequest "$registryUrl/health" | Select-Object -ExpandProperty StatusCode
-
-Push-Location ([System.IO.Path]::GetTempPath())
-try {
-  & $demoPython -I -m dpp_java_services_demo verify `
-    --env-file $envFile --compose-project $project --sdk-wheel $sdkWheel `
-    --report-file $report
-} finally {
-  Pop-Location
-}
+$report = Join-Path ([System.IO.Path]::GetTempPath()) "dpp-java-services-demo-$PID.json"
 ```
 
-Running the resolved interpreter from a temporary directory with `-I` proves the root checkout
-is not supplying `dpp_sdk`.
+### Step 8 — Start the isolated Java services
 
-Linux/macOS, from the Python repository root:
+**What this does:** validates the selected Compose profile, pulls only images that are not already
+local, starts the named project, waits for Compose readiness, and verifies both public `/health`
+endpoints. It does not touch any other Compose project.
+
+```powershell
+& $serviceScript -Action Start -Project $project -EnvFile $envFile
+```
+
+Expected services are `dpp-repo-db`, `dpp-repo-api`, `dpp-registry-db`, and
+`dpp-registry-api`. Both health results must show `status: UP`. Do not run live demos if startup or
+readiness fails; capture logs first.
+
+### Step 9 — Run the live integration educational walkthrough
+
+Detailed connected journey:
+
+```powershell
+& $demoPython -I -m dpp_java_services_demo demo --env-file $envFile
+```
+
+The same evidence as strict JSON, retained in a temporary report:
+
+```powershell
+& $demoPython -I -m dpp_java_services_demo demo `
+  --env-file $envFile --json --report-file $report
+```
+
+The journey shows each input, public SDK operation, Java service interaction, observed response,
+persistence proof, explanation, consumer value, and status. It deletes its repository DPP and proves
+the post-delete 404. Registry registration remains because the public registry API has no read-back
+or cleanup operation (`REG-09` and `REG-10` are explicitly excluded).
+
+### Step 10 — Run optional technical modes
+
+Broad repository and registry health check:
+
+```powershell
+& $demoPython -I -m dpp_java_services_demo full --env-file $envFile
+```
+
+Machine-readable full health result:
+
+```powershell
+& $demoPython -I -m dpp_java_services_demo full --env-file $envFile --json
+```
+
+Strict verification—run last, with the exact project and SDK wheel:
+
+```powershell
+& $demoPython -I -m dpp_java_services_demo verify `
+  --env-file $envFile `
+  --compose-project $project `
+  --sdk-wheel $sdkWheel `
+  --report-file $report
+```
+
+Educational walkthrough success does not replace strict verification. `verify` additionally checks
+installed-wheel provenance and Docker runtime image identity and returns nonzero on failure.
+
+### Step 11 — Inspect this project's containers and logs
+
+**What this does:** shows only the named project's containers, then its logs. Run it before cleanup
+when startup or verification fails.
+
+```powershell
+& $serviceScript -Action Status -Project $project -EnvFile $envFile
+& $serviceScript -Action Logs -Project $project -EnvFile $envFile
+```
+
+### Step 12 — Stop the project and keep database volumes
+
+**What this does:** stops and removes this project's containers and network but keeps its disposable
+database volumes, so the project can be restarted later with the same state.
+
+```powershell
+& $serviceScript -Action Stop -Project $project -EnvFile $envFile
+```
+
+### Step 13 — Stop the project and delete database volumes
+
+**What this does:** permanently deletes only this project's containers, network, and repository and
+registry database volumes. The explicit `-ConfirmDelete` prevents an accidental volume deletion.
+
+```powershell
+& $serviceScript -Action Delete -ConfirmDelete -Project $project -EnvFile $envFile
+Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
+```
+
+Both cleanup choices affect only the project created by this guide and identified by `$project`.
+Never substitute the name of a shared or user-owned Compose project.
+
+## Linux/macOS: complete walkthrough
+
+Run from the repository root.
+
+### 1 — Prepare, build, and install exact wheels
+
+```bash
+test -x .venv/bin/python || python -m venv .venv
+.venv/bin/python -m pip install -e '.[dev,release]'
+.venv/bin/python -m build
+.venv/bin/python -m build ./examples/java-services-demo \
+  --outdir ./examples/java-services-demo/dist
+
+demo_python="$(pwd)/.java-services-demo-venv/bin/python"
+sdk_wheel="$(pwd)/dist/dpp_sdk-0.2.1-py3-none-any.whl"
+demo_wheel="$(pwd)/examples/java-services-demo/dist/dpp_sdk_java_services_demo-0.1.0-py3-none-any.whl"
+
+test -x "$demo_python" || .venv/bin/python -m venv ./.java-services-demo-venv
+"$demo_python" -m pip install --force-reinstall "$sdk_wheel" "$demo_wheel"
+"$demo_python" -m pip check
+"$demo_python" -m pip show dpp-sdk dpp-sdk-java-services-demo
+"$demo_python" -I -c 'import dpp_sdk, dpp_java_services_demo; print(dpp_sdk.__file__); print(dpp_java_services_demo.__file__)'
+"$demo_python" -I -m dpp_java_services_demo --help
+```
+
+Both imports must resolve under `.java-services-demo-venv`; help must list `demo` and `full`.
+
+### 2 — Run SDK-only modes
+
+```bash
+"$demo_python" -I -m dpp_java_services_demo sdk
+"$demo_python" -I -m dpp_java_services_demo sdk --summary
+"$demo_python" -I -m dpp_java_services_demo sdk --json
+```
+
+### 3 — Start an isolated Docker project
+
+**What this does:** validates the selected Compose profile, pulls missing images, starts the named
+project, and checks both public health endpoints without touching another Compose project.
 
 ```bash
 project="dpp-java-services-demo-$$"
 demo_dir="$(pwd)/examples/java-services-demo"
+service_script="$demo_dir/manage-java-services.ps1"
 compose_file="$demo_dir/compose.yaml"
 env_file="$demo_dir/env/pinned.env"
-report="$demo_dir/verification-report.json"
-demo_python="$(pwd)/.java-services-demo-venv/bin/python"
-sdk_wheel="$(pwd)/dist/dpp_sdk-0.2.1-py3-none-any.whl"
-repo_url="${DPP_REPO_BASE_URL:-http://localhost:8080}"
-registry_url="${DPP_REGISTRY_BASE_URL:-http://localhost:8081}"
-
-docker compose -f "$compose_file" -p "$project" --env-file "$env_file" pull
-docker compose -f "$compose_file" -p "$project" --env-file "$env_file" up -d --wait --wait-timeout 120
-docker compose -f "$compose_file" -p "$project" --env-file "$env_file" ps --all
-curl --fail "$repo_url/health"
-curl --fail "$registry_url/health"
-
-outside="$(mktemp -d)"
-(cd "$outside" && "$demo_python" -I \
-  -m dpp_java_services_demo verify --env-file "$env_file" \
-  --compose-project "$project" --sdk-wheel "$sdk_wheel" --report-file "$report")
-rmdir "$outside"
+report="$(mktemp -t dpp-java-services-demo-XXXXXX.json)"
+pwsh -File "$service_script" -Action Start -Project "$project" -EnvFile "$env_file"
 ```
 
-On failure, preserve service state and logs before teardown:
-
-```powershell
-docker compose -f $composeFile -p $project --env-file $envFile ps --all
-docker compose -f $composeFile -p $project --env-file $envFile logs --no-color --timestamps
-docker compose -f $composeFile -p $project --env-file $envFile images --format json
-docker compose -f $composeFile -p $project --env-file $envFile down --volumes --remove-orphans
-docker ps -a --filter "label=com.docker.compose.project=$project"
-docker volume ls --filter "label=com.docker.compose.project=$project"
-```
+### 4 — Run each live mode
 
 ```bash
-docker compose -f "$compose_file" -p "$project" --env-file "$env_file" ps --all
-docker compose -f "$compose_file" -p "$project" --env-file "$env_file" logs --no-color --timestamps
-docker compose -f "$compose_file" -p "$project" --env-file "$env_file" images --format json
-docker compose -f "$compose_file" -p "$project" --env-file "$env_file" down --volumes --remove-orphans
-docker ps -a --filter "label=com.docker.compose.project=$project"
-docker volume ls --filter "label=com.docker.compose.project=$project"
-```
-
-Run `down --volumes --remove-orphans` only for the project created by this guide. It deletes that
-project's disposable database volumes; it must never be aimed at a shared or pre-existing project.
-
-Compose image health starts the dependency chain, while the runner independently polls both
-public `/health` operations up to `DPP_STARTUP_TIMEOUT_SECONDS`. A supplied integration flag or
-live CLI mode fails when functional readiness is unavailable; it never silently passes.
-
-If Docker or Compose is unavailable, install/enable Docker Desktop or the Docker Engine before
-retrying. If `pull` fails, confirm GHCR network access and the selected profile. If a host port is
-occupied, apply the alternate-port variables below before `pull` and keep the chosen project name.
-If readiness fails, run the project-scoped `ps` and `logs` commands below before teardown.
-
-## Run service-backed modes
-
-After readiness succeeds, run one mode from the Python repository root. `services` exercises live
-repository/registry scenarios; `all` adds SDK scenarios; `verify` also writes the required image
-and installed-wheel evidence. A missing profile is reported as a configuration error; do not use
-live pytest until the stack is healthy and the explicit opt-in flag is present.
-
-PowerShell:
-
-```powershell
-& $demoPython -I -m dpp_java_services_demo services --env-file $envFile --json
-& $demoPython -I -m dpp_java_services_demo all --env-file $envFile --json
-& $demoPython -I -m dpp_java_services_demo verify --env-file $envFile `
-  --compose-project $project --sdk-wheel $sdkWheel --report-file $report
-.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo\tests --run-java-services
-```
-
-Linux/macOS:
-
-```bash
-"$demo_python" -I -m dpp_java_services_demo services --env-file "$env_file" --json
-"$demo_python" -I -m dpp_java_services_demo all --env-file "$env_file" --json
-"$demo_python" -I -m dpp_java_services_demo verify --env-file "$env_file" \
-  --compose-project "$project" --sdk-wheel "$sdk_wheel" --report-file "$report"
-.venv/bin/python -m pytest ./examples/java-services-demo/tests --run-java-services
-```
-
-### View the running Java demo services
-
-These browser links belong to the disposable Java demo services, not to the Python package:
-
-| Service | Browser API guide | Machine-readable health | OpenAPI JSON |
-| --- | --- | --- | --- |
-| Repository | `http://localhost:8080/` | `http://localhost:8080/health` | `http://localhost:8080/v3/api-docs` |
-| Registry | `http://localhost:8081/` | `http://localhost:8081/health` | `http://localhost:8081/v3/api-docs` |
-
-Opening either base URL redirects to that service's Swagger UI. If you use alternate ports, replace
-`8080` and `8081` in these links with the ports configured for your run.
-
-If ports 8080/8081 are occupied, override ports and public URLs together before Compose and CLI
-execution:
-
-```powershell
-$env:DPP_REPO_PORT = "18080"
-$env:DPP_REGISTRY_PORT = "18081"
-$env:MOCK_REPO_PORT = "18080"
-$env:MOCK_REGISTRY_PORT = "18081"
-$env:DPP_REPO_BASE_URL = "http://localhost:18080"
-$env:DPP_REGISTRY_BASE_URL = "http://localhost:18081"
-```
-
-```bash
-export DPP_REPO_PORT=18080
-export DPP_REGISTRY_PORT=18081
-export MOCK_REPO_PORT=18080
-export MOCK_REGISTRY_PORT=18081
-export DPP_REPO_BASE_URL=http://localhost:18080
-export DPP_REGISTRY_BASE_URL=http://localhost:18081
-```
-
-## Maintained, semantic-tag, and legacy runs
-
-The release gates are:
-
-1. Full `verify` against `pinned.env`.
-2. Full `verify` against `0.5.0.env`.
-3. Dynamic identity comparison between the executed images and fresh `0.5.0` resolution.
-
-When the pinned and `0.5.0` digests are `SAME_BUILD`, one complete scenario execution plus the
-recorded equality is sufficient to avoid a duplicate run. `DIFFERENT_BUILD` makes the pinned
-`verify` blocking until the complete suite runs separately with `env/0.5.0.env`. The manual
-workflow performs that conditional second run automatically.
-
-Optional legacy command:
-
-Run this from the Python repository root after the maintained setup has defined
-`$project`/`$sdkWheel` or `project`/`sdk_wheel` and installed the demo wheel. It is optional and
-never a release gate.
-
-```powershell
-& $demoPython -I -m dpp_java_services_demo verify `
-  --env-file .\examples\java-services-demo\env\0.4.0.env --legacy `
-  --compose-project $project --sdk-wheel $sdkWheel `
-  --report-file .\examples\java-services-demo\legacy-verification-report.json
-```
-
-```bash
+"$demo_python" -I -m dpp_java_services_demo demo --env-file "$env_file"
+"$demo_python" -I -m dpp_java_services_demo demo \
+  --env-file "$env_file" --json --report-file "$report"
+"$demo_python" -I -m dpp_java_services_demo full --env-file "$env_file"
+"$demo_python" -I -m dpp_java_services_demo full --env-file "$env_file" --json
 "$demo_python" -I -m dpp_java_services_demo verify \
-  --env-file ./examples/java-services-demo/env/0.4.0.env --legacy \
-  --compose-project "$project" --sdk-wheel "$sdk_wheel" \
-  --report-file ./examples/java-services-demo/legacy-verification-report.json
+  --env-file "$env_file" \
+  --compose-project "$project" \
+  --sdk-wheel "$sdk_wheel" \
+  --report-file "$report"
 ```
 
-Version 0.4.0 is never part of the required pull-request or release gate.
+### 5 — Inspect logs and choose cleanup
 
-## Test boundary and retained reports
+Show project status and logs:
+
+```bash
+pwsh -File "$service_script" -Action Status -Project "$project" -EnvFile "$env_file"
+pwsh -File "$service_script" -Action Logs -Project "$project" -EnvFile "$env_file"
+```
+
+Stop but keep database volumes:
+
+```bash
+pwsh -File "$service_script" -Action Stop -Project "$project" -EnvFile "$env_file"
+```
+
+Delete database volumes and the temporary report permanently:
+
+```bash
+pwsh -File "$service_script" -Action Delete -ConfirmDelete -Project "$project" -EnvFile "$env_file"
+rm -f "$report"
+```
+
+## Troubleshooting
+
+### Stale installation
+
+Symptoms include:
+
+- CLI help does not list `demo` and `full`;
+- strict verification reports a built-wheel hash different from the installed archive hash;
+- output or image-identity behavior does not match current source/tests.
+
+First rerun Step 4 with `--force-reinstall`. If the disposable demo environment is still wrong,
+remove only `.java-services-demo-venv`, recreate it, reinstall both exact wheels, and repeat Step 5.
+Do not delete `.venv` or unrelated environments.
+
+### Docker or readiness failure
+
+- Docker unavailable: start Docker Engine/Desktop and rerun Compose configuration.
+- Image pull failure: verify registry access and the selected profile.
+- Port occupied: use the paired port/base-URL variables in
+  [Alternate ports](OPERATIONS.md#alternate-ports) before startup.
+- Readiness failure: capture project-scoped `ps --all` and logs before cleanup.
+- Image identity reports zero containers: confirm the same `$project`/`$compose_project` value was
+  used for `up` and `verify`, and confirm the installed demo passed the CLI/import preflight.
 
 ## Validate the demo
 
-Run every command from `Dpp-SDK-python/dpp-python-sdk`. Ordinary tests and collection do not
-contact Docker or Java services; live tests require a separately created, healthy project and the
-explicit opt-in flag.
+Ordinary tests do not contact Docker or Java services. Live tests require an already running healthy
+project and the explicit live-test opt-in flag shown below.
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo --collect-only
-.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo
-.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo --run-java-services
-.\.venv\Scripts\python.exe -m build
-.\.venv\Scripts\python.exe -m build .\examples\java-services-demo --outdir .\examples\java-services-demo\dist
-.\.venv\Scripts\python.exe -m twine check dist\* .\examples\java-services-demo\dist\*
-docker compose -f .\examples\java-services-demo\compose.yaml --env-file .\examples\java-services-demo\env\pinned.env config --quiet
-```
-
-For installed-wheel proof, use the isolated-wheel setup above, then run `sdk --json` from a
-temporary directory with `-I`. Docker is required only for Compose, live tests, `services`, `all`,
-and `verify`; use logs and project-scoped teardown from the lifecycle section after a live run.
-
-`REG-09` (registry read-back) and `REG-10` (registry cleanup) are explicitly unsupported public
-operations: their Java routes are internal helpers and the Python SDK intentionally exposes no
-client methods for them.
-
-Ordinary root `pytest` does not collect this nested project or require Docker. Run the nested
-project explicitly from the Python repository root:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo
-.\.venv\Scripts\python.exe -m pytest .\examples\java-services-demo --run-java-services
+& .\.venv\Scripts\python.exe -m pytest -c .\examples\java-services-demo\pyproject.toml .\examples\java-services-demo\tests --collect-only
+& .\.venv\Scripts\python.exe -m pytest -c .\examples\java-services-demo\pyproject.toml .\examples\java-services-demo\tests
+& .\.venv\Scripts\python.exe -m pytest -c .\examples\java-services-demo\pyproject.toml .\examples\java-services-demo\tests --run-java-services
 ```
 
 ```bash
-.venv/bin/python -m pytest ./examples/java-services-demo
-.venv/bin/python -m pytest ./examples/java-services-demo --run-java-services
+.venv/bin/python -m pytest -c ./examples/java-services-demo/pyproject.toml ./examples/java-services-demo/tests
+.venv/bin/python -m pytest -c ./examples/java-services-demo/pyproject.toml ./examples/java-services-demo/tests --run-java-services
 ```
 
-The first command precisely skips the two marked live tests. The second requires already-running
-services and converts readiness or scenario failures into test failures.
+## Educational output
 
-The JSON report records scenario fields and totals, Python repository/demo commit, contract
-baseline, exact configured image references, serving container IDs and image IDs, runtime
-digests bound through those containers, fresh maintained digests, exact SDK wheel path/hash and
-installed archive hash, exclusions, timestamps, cleanup warnings, legacy status, and one exact
-interoperability verdict. The only full maintained success verdict is
-`PYTHON_JAVA_SERVICES_INTEROPERABILITY_VERIFIED`.
+Every SDK and curated-demo teaching result distinguishes purpose, input, public SDK operation,
+observed result, persistence/external proof, explanation, consumer value, and status. JSON exposes
+the same bounded structure without terminal formatting. A representative live step is:
 
-## Limitations
+```text
+[INT-11] Update one element and read it back
+Status: PASS
+Persistence proof
+  read_back_value: CIR4FUN Demo Chair updated ... fine
+Summary:
+  steps completed=14; expected errors demonstrated=1; blocked steps=0; skipped steps=0; unexpected failures=0
+Strict verification: NOT_RUN (separate command).
+```
 
-- Only disposable local Java containers are supported; shared or long-lived endpoints are out of
-  scope.
-- The registry has no public read-back or cleanup API. REG-03 therefore uses successful
-  registration plus the missing-DPP rejection as public repository-verification evidence.
-- Malformed transports and other unsafe-to-induce behaviors remain controlled Python transport
-  tests; the runner does not force the images to emit unnatural responses.
-- The unversioned product-history route is controlled legacy evidence only.
-- Native arm64 image support is not a completion requirement.
-- PostgreSQL is a disposable Java-image runtime dependency only; no Python persistence package,
-  backend, EDC, dataspace, or internal Java route is added to `dpp_sdk`.
+## Next steps
+
+- [Operations reference](OPERATIONS.md): profiles, alternate ports, diagnosis, CI, and evidence.
+- [SDK usage](../../docs/usage.md): SDK-only construction and codecs.
+- [Client reference](../../src/dpp_sdk/clients/README.md): public repository and registry operations.
+- [Root README](../../README.md): SDK scope and installation choices.

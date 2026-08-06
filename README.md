@@ -104,7 +104,7 @@ local developer state and must not be committed.
 #### Create the development environment
 
 **Purpose:** create an isolated checkout environment with development and release tools.
-**Run from:** the Python repository root, `Dpp-SDK-python/dpp-python-sdk`.
+**Run from:** the Python repository root, the directory containing `pyproject.toml`.
 **Prerequisites:** Python 3.11 or newer on `PATH`.
 
 ##### PowerShell
@@ -155,12 +155,13 @@ a dependency that ordinary SDK users need.
 
 ## First use from this checkout
 
-All local commands in this section run from `Dpp-SDK-python/dpp-python-sdk`.
+All local commands in this section run from the repository root, the directory containing
+`pyproject.toml`.
 
 1. Choose a published install above, or create `.venv` and install this checkout.
 2. Run the import probe above, then use the small SDK example below.
 3. Run the SDK-only educational walkthrough after following the isolated-wheel setup in the
-   [Java-services demo guide](examples/java-services-demo/README.md#sdk-only-walkthrough):
+   [Java-services demo guide](examples/java-services-demo/README.md#step-6-run-the-sdk-only-educational-walkthrough):
    `./.java-services-demo-venv/Scripts/python.exe -m dpp_java_services_demo sdk` on PowerShell, or
    `./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk` on Linux/macOS. Use
    `--summary` for compact verification or `--json` for machine-readable evidence.
@@ -168,7 +169,7 @@ All local commands in this section run from `Dpp-SDK-python/dpp-python-sdk`.
    documentation commands are owned by the [release guide](RELEASING.md).
 5. Only when you need live interoperability, follow the [Java-services demo guide]
    (examples/java-services-demo/README.md) to start a uniquely named disposable project, run
-   `services`, `all`, or `verify`, inspect its report/logs, and tear down only that project.
+   `demo`, `full`, or `verify`, inspect its report/logs, and tear down only that project.
 
 The demo guide owns its longer service commands and troubleshooting. Docker is never required for
 the installation, SDK example, or SDK-only demo.
@@ -266,6 +267,76 @@ failures in client code use `DppMappingClientError`; an HTTPX client you provide
 The [Java-services demo](examples/java-services-demo/README.md) uses disposable Java repository
 and registry images to exercise the public Python clients. It is maintained against Java image
 version `0.5.0` with pinned image references; version `0.4.0` is optional legacy evidence only.
+Its guide separates an SDK-only walkthrough, a curated live demonstration, a broad full health
+check, and strict verification; only strict verification makes package-provenance and image-identity
+claims.
+
+## Quick Java-service checks
+
+**Run from:** the Python repository root. These are the shortest useful commands when you want to
+exercise the Python SDK against the reusable Java repository and registry images. They do not need a
+Java source checkout. For environment setup, alternate ports, demo commands, logs, stopping, and
+permanent deletion, use the [Java-services demo guide](examples/java-services-demo/README.md).
+
+### 1. Start one isolated Java-service project
+
+```powershell
+$project = "dpp-java-services-demo-$PID"
+& .\examples\java-services-demo\manage-java-services.ps1 -Action Start -Project $project
+```
+
+### 2. Run Python unit and controlled tests only
+
+**What this does:** runs the root Python suite while explicitly excluding marked live integration
+tests. It does not need Docker or Java services.
+
+```powershell
+& .\.venv\Scripts\python.exe -m pytest .\tests -m "not integration"
+```
+
+### 3. Run complete Python-to-Java live tests
+
+Run this only after the successful Start command above. These tests call the already-running Java
+images through the public Python SDK clients; they do not start Docker themselves.
+
+```powershell
+& .\.venv\Scripts\python.exe -m pytest .\tests\test_integration_live.py --run-java-services
+& .\.venv\Scripts\python.exe -m pytest -c .\examples\java-services-demo\pyproject.toml `
+  .\examples\java-services-demo\tests --run-java-services
+```
+
+## Linux/macOS quick checks
+
+Run these from the same repository root when PowerShell is not your shell. They use the same
+reusable lifecycle script and service-test boundary as the PowerShell commands above.
+
+```bash
+project="dpp-java-services-demo-$$"
+pwsh -File ./examples/java-services-demo/manage-java-services.ps1 -Action Start -Project "$project"
+
+# Python unit and controlled tests only — no Docker or Java service calls.
+.venv/bin/python -m pytest ./tests -m "not integration"
+
+# Complete Python-to-Java live test suites; requires the successful Start command above.
+.venv/bin/python -m pytest ./tests/test_integration_live.py --run-java-services
+.venv/bin/python -m pytest -c ./examples/java-services-demo/pyproject.toml \
+  ./examples/java-services-demo/tests --run-java-services
+```
+
+### Run the optional Java services from another location
+
+**What this does:** starts an isolated repository-and-registry stack from pinned public images; it
+does not need a Java source checkout. Copy the complete `examples/java-services-demo` directory
+(the script needs its adjacent `compose.yaml` and `env/` profiles) wherever you want to run the
+stack, then use PowerShell 7+ with a project name you own:
+
+```powershell
+pwsh -File .\java-services-demo\manage-java-services.ps1 -Action Start -Project my-dpp-demo
+```
+
+The script validates the Compose profile, pulls missing images, starts the project, and checks
+both service health endpoints. The [demo guide](examples/java-services-demo/README.md) owns the
+labelled status, logs, stop, deletion, and educational-demo commands.
 
 When that optional stack is running, open `http://localhost:8080/` or
 `http://localhost:8081/` in a browser for the Java service Swagger UI. Use `/health` for a simple
