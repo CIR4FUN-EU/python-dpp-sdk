@@ -22,6 +22,21 @@ def test_sdk_runner_executes_the_approved_capability_matrix() -> None:
     assert all(result.duration_seconds >= 0 for result in results)
 
 
+def test_sdk_runner_can_select_the_small_public_offline_example() -> None:
+    results = run_sdk_scenarios(
+        UUID("12345678-1234-5678-9234-567812345678"),
+        scenario_ids=("SDK-01", "SDK-02", "SDK-03", "SDK-06", "SDK-07"),
+    )
+
+    assert tuple(result.scenario_id for result in results) == (
+        "SDK-01",
+        "SDK-02",
+        "SDK-03",
+        "SDK-06",
+        "SDK-07",
+    )
+
+
 def test_sdk_runner_captures_complete_structured_teaching_evidence() -> None:
     results = run_sdk_scenarios(UUID("12345678-1234-5678-9234-567812345678"))
 

@@ -133,9 +133,9 @@ def test_sdk_mode_runs_all_sdk_scenarios_successfully(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert output.count("[SDK-") == 17
-    assert "SDK-01" in output and "SDK-17" in output
-    assert "EXPECTED_ERROR" in output
+    assert output.count("[SDK-") == 5
+    assert "SDK-01" in output and "SDK-07" in output
+    assert "expected_error=0" in output
     assert "FAILED" not in output
     assert "NOT_IMPLEMENTED" not in output
 
@@ -446,12 +446,12 @@ def test_json_output_is_structured(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert exit_code == 0
     assert payload["mode"] == "sdk"
-    assert len(payload["results"]) == 17
+    assert len(payload["results"]) == 5
     assert payload["schema_version"] == 2
     assert payload["teaching_schema_version"] == 1
     assert payload["mode_verdict"] == "SDK_DEMONSTRATION_PASSED"
     assert payload["exit_outcome"] == "SUCCESS"
-    assert {result["status"] for result in payload["results"]} == {"PASSED", "EXPECTED_ERROR"}
+    assert {result["status"] for result in payload["results"]} == {"PASSED"}
     assert all(result["teaching"] for result in payload["results"])
 
 

@@ -217,9 +217,8 @@ def _validate_root_command_convention(overrides: dict[str, str] | None = None) -
     )
     operations = _read("examples/java-services-demo/OPERATIONS.md")
     assert "from `examples/java-services-demo`" not in demo + operations
-    assert "manage-java-services.ps1" in demo
-    assert "-Action Start" in demo
-    assert 'pwsh -File "$service_script" -Action Start' in demo
+    assert "docker compose --env-file $envFile -f $composeFile -p $project up -d --wait" in demo
+    assert "Optional PowerShell convenience wrapper" in demo
 
 
 def test_documentation_structure_links_examples_payloads_and_diagrams() -> None:
@@ -239,11 +238,12 @@ def test_documentation_structure_links_examples_payloads_and_diagrams() -> None:
     _validate_root_command_convention()
 
 
-def test_demo_readme_makes_sdk_json_output_easy_to_inspect() -> None:
+def test_demo_readme_leads_with_small_consumer_sdk_use() -> None:
     demo = _read("examples/java-services-demo/README.md")
 
-    assert "sdk --json --report-file $sdkReport" in demo
-    assert "Get-Content $sdkReport -TotalCount 24" in demo
+    assert "-m dpp_java_services_demo sdk" in demo
+    assert "offline example does not load a service profile" in demo
+    assert "SDK-01 through SDK-17" not in demo
 
 
 def test_root_readme_quick_service_commands_use_one_env_file() -> None:
@@ -308,30 +308,16 @@ def test_java_service_guides_offer_a_policy_safe_native_compose_fallback() -> No
         'docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile '
         "up -d --wait --wait-timeout 120"
     ) in root
-    assert "If Windows PowerShell blocks scripts" in demo
-    assert "ConvertFrom-StringData" in demo
-    assert "$project = $demoConfig.COMPOSE_PROJECT_NAME" in demo
-    assert "$env:DPP_REPO_BASE_URL = $demoConfig.DPP_REPO_BASE_URL" in demo
-    assert "$env:DPP_REGISTRY_BASE_URL = $demoConfig.DPP_REGISTRY_BASE_URL" in demo
-    assert "docker compose -f $composeFile -p $project --env-file $envFile config --quiet" in demo
-    assert (
-        "docker compose -f $composeFile -p $project --env-file $envFile pull --policy missing"
-        in demo
-    )
-    assert "docker compose -f $composeFile -p $project --env-file $envFile up -d --wait" in demo
-    assert "ExecutionPolicy Bypass" not in root + demo
+    assert "docker compose --env-file $envFile -f $composeFile -p $project pull" in demo
+    assert "docker compose --env-file $envFile -f $composeFile -p $project up -d --wait" in demo
+    assert "Optional PowerShell convenience wrapper" in demo
 
 
 def test_demo_setup_defines_compose_variables_used_by_operations_reference() -> None:
     demo = _read("examples/java-services-demo/README.md")
     operations = _read("examples/java-services-demo/OPERATIONS.md")
 
-    compose_file_prefix = "$composeFile = (Resolve-Path "
-    compose_file_assignment = (
-        compose_file_prefix + ".\\examples\\java-services-demo\\compose.yaml).Path"
-    )
-    assert compose_file_assignment in demo
-    assert 'compose_file="$demo_dir/compose.yaml"' in demo
+    assert '$composeFile = Join-Path $demoDir "compose.yaml"' in demo
     assert "$composeFile" in operations
     assert "$compose_file" in operations
 
@@ -380,12 +366,11 @@ def test_installation_and_demo_commands_keep_their_working_directory_contracts()
     assert "**Run from:** the Python repository root" in readme
     assert "**Run from:** the Python repository root" in release
     assert "from `examples/java-services-demo`" not in demo + operations
-    assert "dpp-java-services-demo-$PID" in demo
-    assert "COMPOSE_PROJECT_NAME" in demo
+    assert '$project = "dpp-java-services-demo-local"' in demo
     assert 'DPP_REPO_BASE_URL = "http://localhost:18080"' in operations
     assert "DPP_REPO_BASE_URL=http://localhost:18080" in operations
-    assert "-Action Delete -ConfirmDelete" in demo
-    assert "only the project created by this guide" in demo
+    assert "down -v" in demo
+    assert "project-scoped" in demo
 
 
 def test_command_guides_use_existing_relative_paths_and_separate_shells() -> None:
@@ -404,10 +389,10 @@ def test_command_guides_use_existing_relative_paths_and_separate_shells() -> Non
     assert "```powershell" in readme
     assert "```bash" in readme
     assert "```powershell" in release
-    assert "```bash" in demo
+    assert "```powershell" in demo
     assert 'python -m build --outdir "$build_root"' in release
     assert "python -m twine check" in release
-    assert 'service_script="$demo_dir/manage-java-services.ps1"' in demo
+    assert "docker compose --env-file $envFile" in demo
     assert not re.search(r"[A-Za-z]:\\\\", readme + release + demo + operations)
 
 
@@ -417,10 +402,10 @@ def test_maintained_sdk_only_references_match_the_current_scenario_contract() ->
     scenario_path = ROOT / "examples/java-services-demo" / "src/dpp_java_services_demo"
     scenarios = (scenario_path / "sdk_scenarios.py").read_text(encoding="utf-8")
 
-    for text in (demo, changelog, scenarios):
+    for text in (changelog, scenarios):
         assert "SDK-01 through SDK-17" in text
         assert "SDK-01 through SDK-15" not in text
-    assert "EXPECTED_ERROR" in demo
+    assert "SDK-01" in demo and "SDK-07" in demo
 
 
 def test_demo_report_commands_use_temporary_output_instead_of_the_worktree() -> None:
@@ -428,26 +413,17 @@ def test_demo_report_commands_use_temporary_output_instead_of_the_worktree() -> 
     operations = _read("examples/java-services-demo/OPERATIONS.md")
     ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
 
-    assert 'Join-Path ([System.IO.Path]::GetTempPath()) "dpp-java-services-demo-$PID.json"' in demo
-    assert 'report="$(mktemp -t dpp-java-services-demo-XXXXXX.json)"' in demo
     assert "examples/java-services-demo/verification-report.json" not in demo + operations
     assert "verification-report.json" in ignored
 
 
 def test_demo_readme_keeps_cleanup_with_the_live_lifecycle_and_links_operations() -> None:
     demo = _read("examples/java-services-demo/README.md")
-    operations = _read("examples/java-services-demo/OPERATIONS.md")
 
-    assert "[operations reference](OPERATIONS.md)" in demo
-    assert "Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue" in demo + operations
-    assert 'rm -f "$report"' in demo + operations
+    assert "[OPERATIONS.md](OPERATIONS.md)" in demo
     assert "manage-java-services.ps1" in demo
     assert "-Action Start" in demo
-    assert "-Action Stop" in demo
-    assert "-Action Delete -ConfirmDelete" in demo
-    assert demo.count("--run-java-services") == 2
-    assert "-c .\\examples\\java-services-demo\\pyproject.toml" in demo
-    assert "-c ./examples/java-services-demo/pyproject.toml" in demo
+    assert "down -v" in demo
 
 
 def test_demo_guides_distinguish_modes_and_document_stale_installation_evidence() -> None:
@@ -461,62 +437,38 @@ def test_demo_guides_distinguish_modes_and_document_stale_installation_evidence(
     assert "strict verification" in root
     assert "Copy the complete `examples/java-services-demo` directory" in root
     assert "manage-java-services.ps1" in root
-    assert "same-version installation can still be stale" in demo
-    assert "pip show dpp-sdk dpp-sdk-java-services-demo" in demo
-    assert "Strict verification: NOT_RUN (separate command)." in demo
-    assert "Use `--detailed` when you need the full operation evidence." in demo
-    assert "Copy `.env.example` to an ignored local `.env`" in demo
-    assert "The later Start command pulls" in demo
-    assert "missing configured images and starts the services" in demo
-    assert "educational JSON evidence" in demo
-    assert "Use `verify` for strict package, controlled, and image evidence." in demo
-    assert "The same evidence as strict JSON" not in demo
+    assert "Optional maintainer verification" in demo
+    assert "dpp_java_services_demo.maintainer" in demo
     for text in (demo, operations):
         assert "demo" in text
-        assert "full" in text
         assert "verify" in text
-        assert "--compose-project" in text
 
 
-def test_demo_readme_uses_a_goal_led_map_for_canonical_modes() -> None:
+def test_demo_readme_uses_a_short_consumer_path() -> None:
     demo = _read("examples/java-services-demo/README.md")
 
-    assert "## Choose your goal" in demo
-    assert "Learn the local SDK" in demo
-    assert "Present a curated connected workflow" in demo
-    assert "Run the broad functional health check" in demo
-    assert "Collect exhaustive technical evidence" in demo
-    assert "`full --detailed`" in demo
-    assert "exact wheels intentionally" in demo
-    assert "## Quick command map" not in demo
-    assert "The same evidence as strict JSON" not in demo
-    assert (
-        "Copy `.env.example` to an ignored local `.env` before starting Docker. It pulls"
-        not in demo
-    )
+    assert "## Quick start" in demo
+    assert "## Optional connected demo" in demo
+    assert "## Optional maintainer verification" in demo
 
 
-def test_demo_readme_explains_linux_lifecycle_shell_boundary() -> None:
+def test_demo_readme_identifies_the_optional_wrapper_boundary() -> None:
     demo = _read("examples/java-services-demo/README.md")
 
-    assert "requires PowerShell 7 (`pwsh`) for the labelled lifecycle commands" in demo
-    assert "native Docker Compose diagnosis and cleanup commands" in demo
-    assert "[operations reference](OPERATIONS.md)" in demo
+    assert "does not depend on PowerShell script execution policy" in demo
+    assert "Optional PowerShell convenience wrapper" in demo
+    assert "[OPERATIONS.md](OPERATIONS.md)" in demo
 
 
-def test_demo_goal_map_links_resolve_to_step_headings() -> None:
+def test_demo_consumer_headings_remain_linkable() -> None:
     demo = _read("examples/java-services-demo/README.md")
     headings = re.findall(r"^(#{1,6})\s+(.+)$", demo, re.MULTILINE)
     anchors = set()
     for _, title in headings:
         cleaned_title = re.sub(r"[^a-z0-9 -]", "", title.lower())
         anchors.add("#" + cleaned_title.replace(" ", "-"))
-    links = set(re.findall(r"\[[^]]+\]\((#[^)]+)\)", demo))
-
-    for target in (
-        "#step-6-run-the-sdk-only-educational-walkthrough",
-        "#step-9--run-the-live-integration-educational-walkthrough",
-        "#step-10--run-optional-technical-modes",
-    ):
-        assert target in anchors
-        assert target in links
+    assert {
+        "#quick-start",
+        "#optional-connected-demo",
+        "#optional-maintainer-verification",
+    } <= anchors

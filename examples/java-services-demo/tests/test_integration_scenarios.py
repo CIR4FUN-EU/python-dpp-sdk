@@ -507,9 +507,7 @@ def test_demo_profile_executes_only_the_curated_connected_journey() -> None:
         "INT-04",
         "INT-05",
         "INT-08",
-        "INT-10",
         "INT-12",
-        "INT-13",
         "INT-14",
     ]
     assert integration_payload(report)["verdict"] == "LIVE_DEMONSTRATION_PASSED"

@@ -23,20 +23,8 @@ EXPECTED_SDK_IDS = (
     "SDK-01",
     "SDK-02",
     "SDK-03",
-    "SDK-04",
-    "SDK-05",
     "SDK-06",
     "SDK-07",
-    "SDK-08",
-    "SDK-09",
-    "SDK-10",
-    "SDK-11",
-    "SDK-12",
-    "SDK-13",
-    "SDK-14",
-    "SDK-15",
-    "SDK-16",
-    "SDK-17",
 )
 
 
@@ -119,9 +107,9 @@ def test_installed_sdk_command_needs_no_service_profile_or_checkout(tmp_path: Pa
                 item["scenario_id"] for item in report["results"]
             )
             assert report["scenario_totals"] == {
-                "total": 17,
-                "passed": 8,
-                "expected_error": 9,
+                "total": 5,
+                "passed": 5,
+                "expected_error": 0,
                 "failed": 0,
                 "skipped": 0,
                 "not_implemented": 0,
@@ -131,8 +119,48 @@ def test_installed_sdk_command_needs_no_service_profile_or_checkout(tmp_path: Pa
             assert report["teaching_schema_version"] == 1
             assert all(item["teaching"]["purpose"] for item in report["results"])
         elif "--summary" in command:
-            assert "summary_totals: total=17 pass=8 expected_error=9 fail=0" in result.stdout
+            assert "summary_totals: total=5 pass=5 expected_error=0 fail=0" in result.stdout
         else:
             assert "DPP Python SDK demonstration" in result.stdout
             assert "Purpose" in result.stdout
             assert "Observed result" in result.stdout
+
+    isolated_environment = tmp_path / "isolated-environment"
+    created_environment = _run(
+        [sys.executable, "-m", "venv", "--system-site-packages", str(isolated_environment)],
+        cwd=outside_checkout,
+    )
+    assert created_environment.returncode == 0, created_environment.stderr
+    python_relative_path = "Scripts/python.exe" if os.name == "nt" else "bin/python"
+    isolated_python = isolated_environment / python_relative_path
+    isolated_install = _run(
+        [
+            str(isolated_python),
+            "-m",
+            "pip",
+            "install",
+            "--force-reinstall",
+            str(root_wheel),
+            str(demo_wheel),
+        ],
+        cwd=outside_checkout,
+    )
+    assert isolated_install.returncode == 0, isolated_install.stderr
+    maintainer = _run(
+        [
+            str(isolated_python),
+            "-I",
+            "-m",
+            "dpp_java_services_demo.maintainer",
+            "sdk-contracts",
+            "--json",
+        ],
+        cwd=outside_checkout,
+        env=service_free_environment,
+    )
+    assert maintainer.returncode == 0, maintainer.stderr
+    maintainer_report = json.loads(maintainer.stdout)
+    assert tuple(item["scenario_id"] for item in maintainer_report["results"]) == tuple(
+        f"SDK-{index:02d}" for index in range(1, 18)
+    )
+    assert Path(maintainer_report["sdk_location"]).is_relative_to(isolated_environment)

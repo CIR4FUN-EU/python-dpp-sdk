@@ -194,7 +194,7 @@ All local commands in this section run from the repository root, the directory c
 1. Choose a published install above, or create `.venv` and install this checkout.
 2. Run the import probe above, then use the small SDK example below.
 3. Run the SDK-only educational walkthrough after following the isolated-wheel setup in the
-   [Java-services demo guide](examples/java-services-demo/README.md#step-6-run-the-sdk-only-educational-walkthrough):
+   [Java-services demo guide](examples/java-services-demo/README.md#quick-start):
    `./.java-services-demo-venv/Scripts/python.exe -m dpp_java_services_demo sdk` on PowerShell, or
    `./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk` on Linux/macOS. Use
    `--summary` for compact verification or `--json` for machine-readable evidence.

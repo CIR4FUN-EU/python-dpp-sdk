@@ -1,7 +1,8 @@
 # Java-services demo operations reference
 
-Use the [demo README](README.md) for the complete beginner sequence: build, exact-wheel install,
-SDK-only walkthrough, Docker startup, every demo mode, logs, stopping, and deleting volumes.
+The [demo README](README.md) is the short consumer path: install, offline `sdk`, optional
+connected `demo`, and project-scoped cleanup. This document owns profiles, advanced lifecycle,
+maintainer verification, CI/release evidence, and diagnosis.
 
 **Run from:** the repository root—the directory containing the root `pyproject.toml`.
 
@@ -20,12 +21,12 @@ URLs there. The lifecycle script uses `.env` by default; select a committed prof
 `$envFile` or `env_file` when needed. A missing profile is a configuration failure; it is not silently
 replaced.
 
-`demo` is the small live educational journey. `full` is the broad repository/registry health check,
-and `verify` additionally requires exact-wheel provenance and runtime image identity. The older
-`integration`, `services`, and `all` names are compatibility aliases only. Pass the startup project
-with `--compose-project` so strict image inspection targets the
-same isolated stack. Passing an educational step is evidence for that step, not a compatibility
-certification.
+`demo` is the small live educational journey. Maintainers use
+`python -m dpp_java_services_demo.maintainer sdk-contracts`, `live`, and `verify` for the exhaustive
+SDK, service, package, image, and policy evidence. `full`, `verify`, `integration`, `services`, and
+`all` remain compatibility commands. Pass the startup project with `--compose-project` so strict
+image inspection targets the same isolated stack. Passing an educational step is evidence for that
+step, not a compatibility certification.
 
 ## Alternate ports
 

@@ -63,12 +63,12 @@ jobs:
           set +e
           if [ "${{ inputs.profile }}" = "0.4.0" ]; then
             (cd "$outside" && "$GITHUB_WORKSPACE/.java-services-demo-venv/bin/python" -I \
-              -m dpp_java_services_demo verify --env-file "$DEMO_ENV_FILE" --legacy \
+              -m dpp_java_services_demo.maintainer verify --env-file "$DEMO_ENV_FILE" --legacy \
               --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
               --report-file "$report")
           else
             (cd "$outside" && "$GITHUB_WORKSPACE/.java-services-demo-venv/bin/python" -I \
-              -m dpp_java_services_demo verify --env-file "$DEMO_ENV_FILE" \
+              -m dpp_java_services_demo.maintainer verify --env-file "$DEMO_ENV_FILE" \
               --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
               --report-file "$report")
           fi
@@ -88,7 +88,7 @@ jobs:
                 up -d --wait --wait-timeout 120
               outside="$(mktemp -d)"
               (cd "$outside" && "$GITHUB_WORKSPACE/.java-services-demo-venv/bin/python" -I \
-                -m dpp_java_services_demo verify --env-file "$DEMO_ENV_FILE" \
+                -m dpp_java_services_demo.maintainer verify --env-file "$DEMO_ENV_FILE" \
                 --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
                 --report-file "$GITHUB_WORKSPACE/artifacts/verification-report-0.5.1.json")
               rmdir "$outside"

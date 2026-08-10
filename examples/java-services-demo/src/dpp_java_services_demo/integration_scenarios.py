@@ -17,7 +17,7 @@ from .image_identity import RuntimeImageIdentity
 
 _INTEGRATION_STATUSES = frozenset({"PASS", "EXPECTED_ERROR", "BLOCKED", "SKIP", "FAIL"})
 _PROFILE_STEP_IDS = {
-    "demo": frozenset({1, 2, 3, 4, 5, 8, 10, 12, 13, 14}),
+    "demo": frozenset({1, 2, 3, 4, 5, 8, 12, 14}),
     "integration": frozenset(range(1, 15)),
 }
 
@@ -489,22 +489,23 @@ def run_integration_scenarios(
                 explanation="The public history operation takes an aware UTC instant.",
                 why="Consumers can resolve an earlier persisted representation.",
             )
-        run(
-            10,
-            "fine_grained",
-            "Read one element",
-            "Read the selected product name without fetching a full DPP.",
-            "DppRepoClient.read_data_element(dpp_id, element_path)",
-            {
-                "name": "repository",
-                "http_method": "GET",
-                "route": "/v1/dpps/{dppId}/elements/{elementPath}",
-            },
-            fine_read,
-            input={"selector": "$.characteristics.productName"},
-            explanation="The SDK encodes the bounded selector as one path segment.",
-            why="Fine-grained access can reduce response handling.",
-        )
+        if 10 in selected_steps:
+            run(
+                10,
+                "fine_grained",
+                "Read one element",
+                "Read the selected product name without fetching a full DPP.",
+                "DppRepoClient.read_data_element(dpp_id, element_path)",
+                {
+                    "name": "repository",
+                    "http_method": "GET",
+                    "route": "/v1/dpps/{dppId}/elements/{elementPath}",
+                },
+                fine_read,
+                input={"selector": "$.characteristics.productName"},
+                explanation="The SDK encodes the bounded selector as one path segment.",
+                why="Fine-grained access can reduce response handling.",
+            )
         fine_changed = f"{changed} fine"
         if 11 in selected_steps:
             run(
@@ -548,18 +549,19 @@ def run_integration_scenarios(
                 {"registry_read_back": "not supported by public SDK"},
             )
 
-        run(
-            12,
-            "registry",
-            "Register the DPP",
-            "Register the repository-backed DPP.",
-            "DppRegistryClient.post_new_dpp_to_registry(request)",
-            {"name": "registry", "http_method": "POST", "route": "/v1/registerDPP"},
-            register,
-            input=request.model_dump(),
-            explanation="The registry verifies the referenced repository DPP.",
-            why="Registration connects public DPP metadata to a repository endpoint.",
-        )
+        if 12 in selected_steps:
+            run(
+                12,
+                "registry",
+                "Register the DPP",
+                "Register the repository-backed DPP.",
+                "DppRegistryClient.post_new_dpp_to_registry(request)",
+                {"name": "registry", "http_method": "POST", "route": "/v1/registerDPP"},
+                register,
+                input=request.model_dump(),
+                explanation="The registry verifies the referenced repository DPP.",
+                why="Registration connects public DPP metadata to a repository endpoint.",
+            )
 
         def invalid() -> tuple[dict[str, object], dict[str, object]]:
             old = repo.read_dpp_by_id(str(identity.dpp_id)).productName

@@ -917,8 +917,10 @@ SCENARIOS: list[_Scenario] = [
 ]
 
 
-def run_sdk_scenarios(run_id: UUID | None = None) -> tuple[ScenarioResult, ...]:
-    """Execute all approved SDK-local scenarios without requiring Docker."""
+def run_sdk_scenarios(
+    run_id: UUID | None = None, *, scenario_ids: tuple[str, ...] | None = None
+) -> tuple[ScenarioResult, ...]:
+    """Execute all maintained scenarios or an explicitly selected public subset."""
 
     identity = DemoIdentity.from_run_id(run_id) if run_id is not None else new_demo_identity()
     context = _ScenarioContext(
@@ -927,7 +929,15 @@ def run_sdk_scenarios(run_id: UUID | None = None) -> tuple[ScenarioResult, ...]:
         build_minimal_fixture(identity),
     )
     results: list[ScenarioResult] = []
-    for scenario in SCENARIOS:
+    selected = (
+        SCENARIOS
+        if scenario_ids is None
+        else [scenario for scenario in SCENARIOS if scenario.scenario_id in scenario_ids]
+    )
+    selected_ids = tuple(scenario.scenario_id for scenario in selected)
+    if scenario_ids is not None and selected_ids != scenario_ids:
+        raise ValueError("scenario_ids must name supported scenarios in canonical order")
+    for scenario in selected:
         started = perf_counter()
         try:
             outcome = scenario.run(context)

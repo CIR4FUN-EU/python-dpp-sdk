@@ -83,9 +83,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "mode",
         choices=("sdk", "demo", "full", "verify", "integration", "services", "all"),
+        metavar="{sdk,demo}",
         help=(
-            "sdk=local education; demo=curated live education; full=broad live health check; "
-            "verify=strict evidence. integration, services, and all are compatibility aliases."
+            "sdk=representative offline SDK use; demo=curated connected SDK use. "
+            "Legacy compatibility commands remain supported; see OPERATIONS.md."
         ),
     )
     parser.add_argument("--env-file", type=Path, help="Compose/demo environment profile")
@@ -303,8 +304,15 @@ def _report(
     image_error: ImageInspectionError | None = None
     config: DemoConfig | None = None
 
-    if execution_profile in {"sdk", "all", "verify"}:
-        results = run_sdk_scenarios(run_id)
+    if execution_profile in {"sdk", "sdk-contracts", "all", "verify"}:
+        results = (
+            run_sdk_scenarios(
+                run_id,
+                scenario_ids=("SDK-01", "SDK-02", "SDK-03", "SDK-06", "SDK-07"),
+            )
+            if execution_profile == "sdk"
+            else run_sdk_scenarios(run_id)
+        )
     if execution_profile == "verify":
         results = (*results, *run_controlled_scenarios())
     if execution_profile in {"full", "services", "all", "verify"}:

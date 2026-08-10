@@ -176,7 +176,7 @@ def test_0_4_0_release_surface_keeps_exact_sdk_consumers_in_sync() -> None:
     assert "dpp-sdk==0.4.0" in root_readme
     assert "dpp-sdk~=0.4.0" in root_readme
     assert 'dependencies = ["dpp-sdk==0.4.0", "httpx>=0.27"]' in demo_pyproject
-    assert "dpp_sdk-0.4.0-py3-none-any.whl" in demo_readme
+    assert "dpp-sdk==0.4.0" not in demo_readme
     assert "dpp_sdk-0.4.0-py3-none-any.whl" in workflow
     assert "default: 0.5.1" in workflow
     assert "          - 0.5.1" in workflow

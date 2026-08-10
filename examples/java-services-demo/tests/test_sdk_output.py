@@ -27,9 +27,9 @@ def test_sdk_text_summary_is_compact_and_keeps_statuses() -> None:
     text = render_text(report, summary=True)
 
     assert "SDK-01 | Complete model construction" in text
-    assert "SDK-17 | Registry request construction" in text
+    assert "SDK-07 | Valid immutable updates" in text
     assert "Purpose\n" not in text
-    assert "EXPECTED_ERROR" in text
+    assert "expected_error=0" in text
 
 
 def test_sdk_detailed_text_keeps_an_unexpected_failure_visible() -> None:
