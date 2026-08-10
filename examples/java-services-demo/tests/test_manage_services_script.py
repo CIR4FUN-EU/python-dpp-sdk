@@ -26,6 +26,11 @@ def test_lifecycle_script_is_project_scoped_and_guards_volume_deletion() -> None
     assert "down --volumes --remove-orphans" in script
     assert "Copy-Item .\\examples\\java-services-demo\\.env.example" in guide
     assert "project-prefixed container names" in guide
+    assert "Docker Engine or Docker Desktop must be running" in guide
+    assert "Optional PowerShell convenience wrapper" in guide
+    assert guide.index(
+        "docker compose -f $composeFile -p $project --env-file $envFile config --quiet"
+    ) < guide.index("& $serviceScript -Action Start -EnvFile $envFile")
     assert "COMPOSE_PROJECT_NAME=" in example
     assert "MOCK_REPO_PORT=" in example
     assert "MOCK_REGISTRY_PORT=" in example

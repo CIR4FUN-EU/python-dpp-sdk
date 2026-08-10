@@ -172,14 +172,7 @@ $report = Join-Path ([System.IO.Path]::GetTempPath()) "dpp-java-services-demo-$P
 local, starts the named project, waits for Compose readiness, and verifies both public `/health`
 endpoints. It does not touch any other Compose project.
 
-```powershell
-& $serviceScript -Action Start -EnvFile $envFile
-```
-
-### If Windows PowerShell blocks scripts
-
-Do not change your execution policy. Run the following native Docker Compose fallback; it uses the
-same `.env`, project, images, ports, and endpoint variables created above.
+Docker Engine or Docker Desktop must be running before continuing.
 
 ```powershell
 docker compose -f $composeFile -p $project --env-file $envFile config --quiet
@@ -187,6 +180,15 @@ docker compose -f $composeFile -p $project --env-file $envFile pull --policy mis
 docker compose -f $composeFile -p $project --env-file $envFile up -d --wait --wait-timeout 120
 Invoke-RestMethod "$($env:DPP_REPO_BASE_URL)/health"
 Invoke-RestMethod "$($env:DPP_REGISTRY_BASE_URL)/health"
+```
+
+### Optional PowerShell convenience wrapper
+
+If your system permits PowerShell scripts, the wrapper runs the same project-scoped Compose startup
+and health checks:
+
+```powershell
+& $serviceScript -Action Start -EnvFile $envFile
 ```
 
 Expected services are `dpp-repo-db`, `dpp-repo-api`, `dpp-registry-db`, and
