@@ -26,6 +26,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-sugar>=1.1.1",
     "pytest-cov>=5.0",
     "mypy>=1.9",
     "ruff>=0.4",
@@ -36,17 +37,18 @@ release = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/CIR4FUN-EU/dpp-sdk-python"
-Repository = "https://github.com/CIR4FUN-EU/dpp-sdk-python"
-Issues = "https://github.com/CIR4FUN-EU/dpp-sdk-python/issues"
-Changelog = "https://github.com/CIR4FUN-EU/dpp-sdk-python/blob/main/CHANGELOG.md"
-Reference = "https://github.com/CIR4FUN-EU/dpp-sdk-platform"
+Homepage = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk"
+Repository = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk"
+Issues = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk/-/issues"
+Changelog = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk/-/blob/main/CHANGELOG.md"
+Reference = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-sdk-platform"
 
 [tool.hatch.version]
 path = "src/dpp_sdk/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dpp_sdk"]
+exclude = ["**/AGENTS.md", "**/.codex/**"]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -55,6 +57,27 @@ include = [
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
+]
+exclude = [
+    "examples/mock-services-demo",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/*-venv/**",
+    "**/env/**",
+    "**/site-packages/**",
+    "**/dist-packages/**",
+    "**/pyvenv.cfg",
+    "**/.pytest_cache/**",
+    "**/.mypy_cache/**",
+    "**/.ruff_cache/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/verification-report.json",
+    "**/legacy-verification-report.json",
+    "**/AGENTS.md",
+    "**/.codex/**",
+    "docs/python-agent-drafts/**",
+    "docs/java-python-parity/**",
 ]
 
 [tool.ruff]
@@ -87,5 +110,5 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-ra"
 markers = [
-    "integration: live tests against the Java mock services (auto-skip if down)",
+    "integration: opt-in live conformance tests against externally supplied endpoints",
 ]

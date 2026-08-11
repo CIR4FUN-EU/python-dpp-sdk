@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dpp-sdk-mock-services-demo"
+version = "0.1.0"
+description = "Python SDK demo against repository and registry HTTP services; supplied profiles currently use mock service images"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["dpp-sdk==0.4.0", "httpx>=0.27"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-sugar>=1.1.1", "ruff>=0.4"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dpp_mock_services_demo"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/dpp_mock_services_demo",
+    "tests",
+    "compose.yaml",
+    "env",
+    ".env.example",
+    "README.md",
+    "ADVANCED_OPERATIONS.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+markers = ["integration: opt-in tests against already-running mock services"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]

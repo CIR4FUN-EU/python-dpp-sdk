@@ -1,6 +1,6 @@
 """Python SDK for Digital Product Passports (DPP).
 
-Idiomatic Pydantic v2 port of the Java DPP SDK (see ../dpp-sdk-platform).
+Idiomatic Pydantic v2 implementation of the DPP SDK contracts.
 
 Sub-packages:
     dpp_sdk.core      -- reusable core DPP model, validation, identifiers
@@ -41,7 +41,7 @@ from .dpp4fun import (
     validate_dpp4fun,
 )
 
-__version__ = "0.2.1"
+__version__ = "0.4.0"
 
 __all__ = [
     "Address",

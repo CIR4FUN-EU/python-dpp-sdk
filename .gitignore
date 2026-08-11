@@ -5,8 +5,16 @@ __pycache__/
 .eggs/
 build/
 dist/
+/artifacts/
+verification-report.json
+legacy-verification-report.json
 .venv/
 venv/
+.mock-services-demo-venv/
+site-packages/
+dist-packages/
+pyvenv.cfg
+.env
 
 # Tooling caches
 .pytest_cache/
@@ -23,3 +31,8 @@ coverage.xml
 
 # Documents
 /docs-internal
+
+# Local agent instructions and retained agent state (at any depth)
+**/AGENTS.md
+**/CLAUDE.md
+**/.codex/

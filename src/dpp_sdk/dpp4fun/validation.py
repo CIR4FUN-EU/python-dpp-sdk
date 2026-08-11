@@ -7,6 +7,10 @@ the core validators, the furniture sub-validators, and the two cross-object rule
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from math import isfinite
+
+from ..core._text import is_blank, normalize_for_comparison, strip_contract_whitespace
 from ..core.errors import DppValidationError
 from ..core.validation import validate_dpp_core
 from .model import (
@@ -22,25 +26,27 @@ from .model import (
 
 
 def _has_text(value: str | None) -> bool:
-    return value is not None and bool(value.strip())
+    return value is not None and not is_blank(value)
 
 
 def _require_not_blank(value: str | None, field_name: str) -> None:
-    if value is None or not value.strip():
+    if is_blank(value):
         raise DppValidationError(f"{field_name} must not be blank")
 
 
-def _require_clean_string_list(items: list[str], list_name: str) -> None:
+def _require_clean_string_list(items: Sequence[str], list_name: str) -> None:
     """No null, blank, or (case-insensitive, trimmed) duplicate entries."""
     seen: set[str] = set()
     for index, item in enumerate(items):
         if item is None:
             raise DppValidationError(f"{list_name}[{index}] must not be null")
-        if not item.strip():
+        if is_blank(item):
             raise DppValidationError(f"{list_name}[{index}] must not be blank")
-        key = item.strip().lower()
+        key = normalize_for_comparison(item)
         if key in seen:
-            raise DppValidationError(f"{list_name} contains duplicate entry: '{item.strip()}'")
+            raise DppValidationError(
+                f"{list_name} contains duplicate entry: '{strip_contract_whitespace(item)}'"
+            )
         seen.add(key)
 
 
@@ -52,8 +58,8 @@ def validate_dimensions(dimensions: Dimensions | None) -> None:
         (dimensions.height, "Dimensions.height"),
         (dimensions.depth, "Dimensions.depth"),
     ):
-        if value is not None and value < 0:
-            raise DppValidationError(f"{name} must be non-negative, but got {value}")
+        if value is not None and (not isfinite(value) or value < 0):
+            raise DppValidationError(f"{name} must be finite and non-negative, but got {value}")
 
     has_any_value = (
         dimensions.width is not None
@@ -71,9 +77,9 @@ def validate_material(material: Material | None) -> None:
     if material is None:
         return
     _require_not_blank(material.name, "Material.name")
-    if material.portion < 0:
+    if not isfinite(material.portion) or material.portion < 0:
         raise DppValidationError(
-            f"Material.portion must be non-negative, but got {material.portion}"
+            f"Material.portion must be finite and non-negative, but got {material.portion}"
         )
     if material.reference is not None:
         _require_not_blank(material.reference, "Material.reference")
@@ -100,8 +106,8 @@ def validate_part(part: Part | None) -> None:
 
 
 def _key(name: str, reference: str | None) -> str:
-    normalized_name = name.strip().lower() if name else ""
-    normalized_reference = reference.strip().lower() if reference else ""
+    normalized_name = normalize_for_comparison(name) if name else ""
+    normalized_reference = normalize_for_comparison(reference) if reference else ""
     return f"{normalized_name}|{normalized_reference}"
 
 
@@ -110,7 +116,9 @@ def validate_bill_of_materials(bom: BillOfMaterials | None) -> None:
         return
 
     material_keys: set[str] = set()
-    for material in bom.materials:
+    for index, material in enumerate(bom.materials):
+        if material is None:
+            raise DppValidationError(f"BillOfMaterials.materials[{index}] must not be null")
         validate_material(material)
         key = _key(material.name, material.reference)
         if key in material_keys:
@@ -118,7 +126,9 @@ def validate_bill_of_materials(bom: BillOfMaterials | None) -> None:
         material_keys.add(key)
 
     component_keys: set[str] = set()
-    for component in bom.components:
+    for index, component in enumerate(bom.components):
+        if component is None:
+            raise DppValidationError(f"BillOfMaterials.components[{index}] must not be null")
         validate_component(component)
         key = _key(component.name, component.reference)
         if key in component_keys:
@@ -126,7 +136,9 @@ def validate_bill_of_materials(bom: BillOfMaterials | None) -> None:
         component_keys.add(key)
 
     part_keys: set[str] = set()
-    for part in bom.parts:
+    for index, part in enumerate(bom.parts):
+        if part is None:
+            raise DppValidationError(f"BillOfMaterials.parts[{index}] must not be null")
         validate_part(part)
         key = _key(part.name, part.reference)
         if key in part_keys:
@@ -145,9 +157,7 @@ def validate_product_classification(classification: ProductClassification | None
         _require_not_blank(classification.subCategory, "ProductClassification.subCategory")
 
     if _has_text(classification.subCategory) and not _has_text(classification.category):
-        raise DppValidationError(
-            "ProductClassification.subCategory is set but category is missing"
-        )
+        raise DppValidationError("ProductClassification.subCategory is set but category is missing")
     if _has_text(classification.group) and not _has_text(classification.sector):
         raise DppValidationError("ProductClassification.group is set but sector is missing")
 
@@ -159,9 +169,12 @@ def validate_characteristics(characteristics: Characteristics | None) -> None:
     if characteristics is None:
         raise DppValidationError("Characteristics is required")
     _require_not_blank(characteristics.productName, "Characteristics.productName")
-    if characteristics.weight is not None and characteristics.weight < 0:
+    if characteristics.weight is not None and (
+        not isfinite(characteristics.weight) or characteristics.weight < 0
+    ):
         raise DppValidationError(
-            f"Characteristics.weight must be non-negative, but got {characteristics.weight}"
+            "Characteristics.weight must be finite and non-negative, but got "
+            f"{characteristics.weight}"
         )
     validate_dimensions(characteristics.dimensions)
     if characteristics.features:
@@ -185,8 +198,8 @@ def _validate_cross_rules(dpp: Dpp4Fun) -> None:
     category = dpp.category
     product_type = dpp.productType
     if _has_text(category) and _has_text(product_type):
-        cat_lower = category.strip().lower()
-        type_lower = product_type.strip().lower()  # type: ignore[union-attr]
+        cat_lower = normalize_for_comparison(category)
+        type_lower = normalize_for_comparison(product_type)  # type: ignore[arg-type]
         if cat_lower not in type_lower and type_lower not in cat_lower:
             raise DppValidationError(
                 f"Cross-object validation: classification.category '{category}' "

@@ -12,7 +12,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class DppStatusCode(StrEnum):
@@ -30,6 +30,7 @@ class DppStatusCode(StrEnum):
     ClientResourceConflict = "ClientResourceConflict"
     ServerInternalError = "ServerInternalError"
     ServerErrorBadGateway = "ServerErrorBadGateway"
+    ServerNotImplemented = "ServerNotImplemented"
 
     @classmethod
     def _missing_(cls, value: object) -> DppStatusCode | None:
@@ -108,11 +109,42 @@ class UpdateDataElementRequest(_ClientBase):
 
 # --- registry DTOs --------------------------------------------------------------
 class RegisterDppRequest(_ClientBase):
-    productIdentifier: str | None = None
-    dppIdentifier: str | None = None
-    operatorIdentifier: str | None = None
-    repoUrl: str | None = None
+    uniqueProductIdentifier: str | None = Field(
+        validation_alias=AliasChoices("uniqueProductIdentifier", "productIdentifier"), default=None
+    )
+    digitalProductPassportId: str | None = Field(
+        validation_alias=AliasChoices("digitalProductPassportId", "dppIdentifier"), default=None
+    )
+    uniqueEconomicOperatorIdentifier: str | None = Field(
+        validation_alias=AliasChoices("uniqueEconomicOperatorIdentifier", "operatorIdentifier"),
+        default=None,
+    )
+    dppApiEndpoint: str | None = Field(
+        validation_alias=AliasChoices("dppApiEndpoint", "repoUrl"), default=None
+    )
+
+    @property
+    def productIdentifier(self) -> str | None:  # noqa: N802
+        return self.uniqueProductIdentifier
+
+    @property
+    def dppIdentifier(self) -> str | None:  # noqa: N802
+        return self.digitalProductPassportId
+
+    @property
+    def operatorIdentifier(self) -> str | None:  # noqa: N802
+        return self.uniqueEconomicOperatorIdentifier
+
+    @property
+    def repoUrl(self) -> str | None:  # noqa: N802
+        return self.dppApiEndpoint
 
 
 class RegisterDppResponse(_ClientBase):
-    registryIdentifier: str | None = None
+    registrationId: str | None = Field(
+        validation_alias=AliasChoices("registrationId", "registryIdentifier"), default=None
+    )
+
+    @property
+    def registryIdentifier(self) -> str | None:  # noqa: N802
+        return self.registrationId

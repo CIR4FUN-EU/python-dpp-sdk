@@ -1,12 +1,5 @@
 name: Release
 
-# Cut a release by pushing a version tag, e.g.:
-#   git tag v0.1.0 && git push origin v0.1.0
-#
-# Flow: build -> publish to TestPyPI -> (manual approval) -> publish to PyPI.
-# Publishing uses PyPI Trusted Publishing (OIDC) — no API tokens are stored.
-# See docs-internal/RELEASING.md for the one-time PyPI/TestPyPI publisher registration.
-
 on:
   push:
     tags: ["v*.*.*"]
@@ -15,32 +8,76 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build sdist + wheel
+  quality:
+    name: Quality gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Install build tooling
+      - name: Install validation tools
+        run: python -m pip install -e ".[dev,release]"
+
+      - name: Verify tag matches package version
+        run: python scripts/release_checks.py tag-version "$GITHUB_REF_NAME"
+
+      - name: Lint, format, and type check
+        run: |
+          ruff check .
+          ruff format --check .
+          mypy
+
+      - name: Root tests including documentation, client, live-gating, and archive regressions
+        run: python -m pytest
+
+      - name: Nested demo tests
+        run: python -m pytest examples/mock-services-demo
+
+  build:
+    name: Build and validate release artifacts
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build tools
         run: python -m pip install --upgrade build twine
 
-      - name: Build
-        run: python -m build
+      - name: Build root and nested distributions once
+        run: |
+          python -m build --outdir artifacts/root
+          python -m build examples/mock-services-demo --outdir artifacts/demo
 
-      - name: Check metadata + README rendering
-        run: twine check dist/*
+      - name: Validate archive contents and metadata
+        run: |
+          python scripts/release_checks.py archive-members artifacts/root/dpp_sdk-*.tar.gz
+          python -m twine check artifacts/root/* artifacts/demo/*
 
-      - name: Upload distributions
+      - name: Fresh installation proof
+        run: |
+          expected_version="$(python scripts/release_checks.py package-version)"
+          python -m venv /tmp/dpp-sdk-release-venv
+          /tmp/dpp-sdk-release-venv/bin/python -m pip install artifacts/root/dpp_sdk-*.whl artifacts/demo/dpp_sdk_mock_services_demo-*.whl
+          /tmp/dpp-sdk-release-venv/bin/python -m pip check
+          (cd /tmp && EXPECTED_PACKAGE_VERSION="$expected_version" /tmp/dpp-sdk-release-venv/bin/python -I -c 'import os; import dpp_sdk; assert dpp_sdk.__version__ == os.environ["EXPECTED_PACKAGE_VERSION"]')
+          (cd /tmp && /tmp/dpp-sdk-release-venv/bin/python -I -m dpp_mock_services_demo sdk --json)
+          (cd /tmp && /tmp/dpp-sdk-release-venv/bin/python -I -m dpp_mock_services_demo.maintainer sdk-contracts --json)
+
+      - name: Upload verified distributions
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: verified-dist
+          path: artifacts/
+          if-no-files-found: error
 
   publish-testpypi:
     name: Publish to TestPyPI
@@ -50,17 +87,18 @@ jobs:
       name: testpypi
       url: https://test.pypi.org/project/dpp-sdk/
     permissions:
-      id-token: write   # required for Trusted Publishing (OIDC)
+      id-token: write
     steps:
-      - name: Download distributions
+      - name: Download verified distributions
         uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: verified-dist
+          path: artifacts/
 
-      - name: Publish to TestPyPI
+      - name: Publish verified root distributions
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          packages-dir: artifacts/root
           repository-url: https://test.pypi.org/legacy/
 
   publish-pypi:
@@ -68,16 +106,18 @@ jobs:
     needs: publish-testpypi
     runs-on: ubuntu-latest
     environment:
-      name: pypi          # protect with a required reviewer to gate production
+      name: pypi
       url: https://pypi.org/project/dpp-sdk/
     permissions:
-      id-token: write   # required for Trusted Publishing (OIDC)
+      id-token: write
     steps:
-      - name: Download distributions
+      - name: Download verified distributions
         uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: verified-dist
+          path: artifacts/
 
-      - name: Publish to PyPI
+      - name: Publish verified root distributions
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: artifacts/root

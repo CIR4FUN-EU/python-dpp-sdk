@@ -1,0 +1,5 @@
+flowchart LR
+  Dpp4Fun["DPP4Fun<br/>dpp_sdk.dpp4fun"] -->|depends on| Core["Reusable Core<br/>dpp_sdk.core"]
+  Dpp4Fun -->|provides| Model["Furniture aggregate"]
+  Dpp4Fun -->|provides| Validation["Explicit furniture validation"]
+  Dpp4Fun -->|provides| Transport["Flat / nested JSON mapping"]

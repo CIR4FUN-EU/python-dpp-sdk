@@ -1,0 +1,15 @@
+{
+  "preservedAtCommit" : "9933d674ba27cd987f1bba731eb57b8dbb6bba95",
+  "classification" : "BLOCKER_PLACEHOLDER",
+  "files" : {
+    "canonical-java-output.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"canonical-java-output.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "invalid-cross-object-rule.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"invalid-cross-object-rule.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "invalid-missing-required-field.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"invalid-missing-required-field.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "invalid-semantic-rule.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"invalid-semantic-rule.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "valid-complete-dpp.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"valid-complete-dpp.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "valid-flat-input.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"valid-flat-input.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "valid-minimal-dpp.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"valid-minimal-dpp.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "valid-nested-input.json" : "{\"fixtureStatus\":\"BLOCKED\",\"fixtureName\":\"valid-nested-input.json\",\"reason\":\"No deterministic Java producer exists; see golden-fixtures/README.md and UNC-003.\"}\n",
+    "malformed-json.txt" : "BLOCKED: no persisted Java-generated malformed-input fixture. Evidence source is TestDataFactory.createMalformedJson() and Dpp4FunJsonCodecTest; see UNC-003.\n"
+  }
+}

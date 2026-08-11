@@ -4,23 +4,76 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - Synchronisation with java-dpp-sdk
 
 ### Added
-- `DppRepoClient.for_local_mock()` and `DppRegistryClient.for_local_mock()` factories that
-  point the clients at the local mock services (`http://localhost:8080` / `:8081`), with an
-  optional `base_url` override and env overrides (`DPP_REPO_PORT` / `DPP_REGISTRY_PORT`, or
-  the full `DPP_REPO_BASE_URL` / `DPP_REGISTRY_BASE_URL`).
+- An isolated `examples/mock-services-demo` consumer project with reproducible Mock image
+  profiles, pull-only memory-mode Compose infrastructure, SDK-01 through SDK-17, complete public
+  repository/registry interoperability scenarios, controlled edge contracts, installed-import
+  proof, dynamic image identity evidence, and retained verification reports.
+- A fresh-installed-wheel cross-component proof covering validated immutable updates,
+  DPP4Fun codec round-trips, captured repository/registry requests, and client error
+  translation without source-tree imports.
+- Python-only local-endpoint helpers and factories, with explicit `base_url` and
+  environment overrides (`DPP_REPO_BASE_URL` / `DPP_REGISTRY_BASE_URL`). They do
+  not provide or operate any service.
 - `health_check()` on both clients (probes `GET /health`).
 - Default endpoint constants and helpers exported from `dpp_sdk.clients`:
   `DEFAULT_REPO_BASE_URL`, `DEFAULT_REGISTRY_BASE_URL`, `DEFAULT_REPO_PORT`,
   `DEFAULT_REGISTRY_PORT`, `local_repo_base_url()`, `local_registry_base_url()`.
-- `integration` pytest marker and a live conformance test suite (`tests/test_integration_live.py`)
-  that exercises the clients against the running mock services and auto-skips when they are down.
+- `integration` pytest marker and opt-in live conformance tests for an
+  externally supplied endpoint.
+
+### Fixed
+- The installed Mock-services demo's SDK-only modes now defer service-profile loading, so `sdk`
+  and `sdk --json` run from an installed nested wheel without a checkout or `env/pinned.env`.
+- Mock-services demo configuration tests now isolate service environment variables, so documented
+  alternate host-port overrides cannot contaminate profile/default assertions.
+- Bill-of-materials validation now rejects null material, component, and part members
+  with fail-fast indexed `DppValidationError` paths instead of leaking `AttributeError`.
+- History reads now normalize timezone-aware datetimes to the Mock-compatible canonical UTC
+  `Z` query wire, including Mock-compatible fractional-second precision.
+- Repository identifiers and element paths now use exact dynamic-segment percent encoding,
+  preserving literal `*` while encoding `~`, `%`, `?`, and `#`.
+- Repository and registry clients now reject null response payloads, null codec results, and
+  invalid registry requests through causal `DppMappingClientError` failures before invalid
+  values or raw implementation exceptions can escape.
+- Contracted text fields use an explicit frozen Unicode White_Space table in construction,
+  semantic validation, duplicate comparison, and cross-object comparison.
+- Contracted floating-point values are finite and non-negative; strict JSON mapping rejects
+  non-finite input, overflow, and output with preserved causes.
+- Standalone codec roots and null string-list members follow the approved structural mapping
+  boundary, while direct defensive validators retain indexed semantic errors.
 
 ### Changed
+- Active model guidance and contract tests consistently use `with_updates()` as the
+  revalidating immutable-edit seam; intentional Pydantic bypass probes remain internal.
 - `README.md`: full lifecycle Quickstart (build → validate → store → register → read → update →
-  delete) and a guide for integration-testing against the mock services.
+  delete) now uses application-provided endpoints and no-network examples.
+- Domain models expose `with_updates()` for revalidated immutable updates; contracted collections
+  are immutable tuples in memory and continue to serialize as JSON arrays.
+- Validation documentation now describes the tested fail-fast behavior rather than aggregation.
+- Canonical repository and registry documentation uses `/v1` routes, canonical registration
+  fields and `registrationId`, compressed/versioned reads, direct data-element JSON bodies, and
+  distinct client error categories.
+- Both SDK clients support explicit `close()` and context-manager cleanup for SDK-owned HTTPX
+  resources; caller-supplied clients remain caller-owned.
+- Aggregate validators document and test their supported public boundary and fail-fast order;
+  arbitrary `model_construct()` corruption is not a public compatibility contract.
+- Root and module READMEs now use plain-language entry points, explain Python client payload models,
+  distinguish optional Mock-demo prerequisites, and include focused Mermaid diagrams with captions.
+
+### Compatibility
+- `UpdateDataElementRequest` remains importable only as a compatibility DTO; it does not affect
+  canonical direct data-element PATCH bodies.
+- Legacy registry aliases and the unversioned product-ID history route are retained compatibility
+  surfaces only. New integrations should use canonical field names and versioned routes.
+
+## [0.2.1] — Previous package baseline
+
+- Package metadata and `dpp_sdk.__version__` identified the preceding checkout as `0.2.1`.
+- This repository checkout contains no local release tag for `0.2.1`; commit history remains
+  the provenance source for changes predating the current unreleased section.
 
 ## [0.1.1]
 
@@ -29,7 +82,7 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 
 ## [0.1.0] — Initial release
 
-First public release of the Python port of the Java DPP SDK.
+First public release of the Python port of the Mock DPP SDK.
 
 ### Added
 - `dpp_sdk.core` — core DPP model, validation, and identifiers (Pydantic v2).
@@ -37,6 +90,7 @@ First public release of the Python port of the Java DPP SDK.
 - `dpp_sdk.clients` — `httpx`-based HTTP clients for the DPP repository and registry APIs.
 - Packaging: PEP 621 `pyproject.toml`, `src/` layout, `py.typed` marker, sdist + wheel build.
 
-[Unreleased]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/CIR4FUN-EU/dpp-sdk-python/releases/tag/v0.4.0
 [0.1.1]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CIR4FUN-EU/dpp-sdk-python/releases/tag/v0.1.0

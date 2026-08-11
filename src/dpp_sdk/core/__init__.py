@@ -1,6 +1,6 @@
 """Reusable core DPP model, validation, and identifiers.
 
-Port of `dppsdk.core.*` from ../dpp-sdk-platform/dpp-datamodel/dpp-core.
+Reusable core DPP model, validation, and identifier contracts.
 """
 
 from .errors import DppError, DppMappingError, DppValidationError

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from ._text import is_blank
 from .errors import DppValidationError
 from .model import (
     Address,
@@ -29,11 +30,11 @@ from .model import (
 
 
 def _has_text(value: str | None) -> bool:
-    return value is not None and bool(value.strip())
+    return value is not None and not is_blank(value)
 
 
 def _require_not_blank(value: str | None, field_name: str) -> None:
-    if value is None or not value.strip():
+    if is_blank(value):
         raise DppValidationError(f"{field_name} must not be blank")
 
 
@@ -125,9 +126,7 @@ def validate_nameplate(nameplate: Nameplate | None) -> None:
     if nameplate.supplier is not None:
         validate_organization(nameplate.supplier)
         if nameplate.supplier.role is None:
-            raise DppValidationError(
-                "Nameplate.supplier must have role SUPPLIER, but role is null"
-            )
+            raise DppValidationError("Nameplate.supplier must have role SUPPLIER, but role is null")
         if nameplate.supplier.role is not OrganizationRole.SUPPLIER:
             raise DppValidationError(
                 "Nameplate.supplier must have role SUPPLIER, but got "

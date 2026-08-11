@@ -1,0 +1,5 @@
+flowchart LR
+  App["Python application"] -->|uses| Core["Reusable Core<br/>dpp_sdk.core"]
+  Core -->|provides| Models["Frozen DPP models"]
+  Core -->|provides| Validation["Explicit core validation"]
+  Core -->|provides| Errors["Shared DPP errors"]

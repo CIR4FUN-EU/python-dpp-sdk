@@ -8,21 +8,25 @@ pipeline match the Java client exactly.
 from __future__ import annotations
 
 import json
-from datetime import datetime
-from typing import Any, Generic, TypeVar
+from datetime import UTC, datetime
+from types import TracebackType
+from typing import Any, Generic, Self, TypeVar
 
 import httpx
 
 from . import _http, endpoints
-from .errors import DppMappingClientError, DppValidationClientError
+from .errors import DppClientError, DppMappingClientError, DppValidationClientError
 from .payloads import CreateDppResponse, DeleteDppResponse, ReadDppIdsRequest, ReadDppIdsResponse
 
 T = TypeVar("T")
 
-_DPPS_PATH = "/dpps"
-_DPPS_BY_PRODUCT_ID_PATH = "/dppsByProductId/"
+# Canonical repository routes are versioned. The product-ID history route below
+# is the one retained, explicitly deprecated compatibility exception.
+_DPPS_PATH = "/v1/dpps"
+_DPPS_BY_PRODUCT_ID_PATH = "/v1/dppsByProductId/"
+_DPPS_BY_ID_AND_DATE_PATH = "/v1/dppsByIdAndDate/"
 _DPPS_BY_PRODUCT_ID_AND_DATE_PATH = "/dppsByProductIdAndDate/"
-_DPPS_BY_PRODUCT_IDS_PATH = "/dppsByProductIds"
+_DPPS_BY_PRODUCT_IDS_PATH = "/v1/dppsByProductIds"
 
 
 class DppRepoClient(Generic[T]):
@@ -37,7 +41,9 @@ class DppRepoClient(Generic[T]):
         self._base_url = _http.normalize_base_url(base_url)
         self._codec = codec
         self._validator = validator
+        self._owns_client = client is None
         self._client = client if client is not None else _http.build_client()
+        self._closed = False
 
     @classmethod
     def for_local_mock(
@@ -48,10 +54,9 @@ class DppRepoClient(Generic[T]):
         base_url: str | None = None,
         client: httpx.Client | None = None,
     ) -> DppRepoClient[T]:
-        """Build a client pointed at the local mock repo (``dpp-sdk-demo``).
+        """Build a client for a configurable local repository endpoint.
 
-        Defaults to :func:`endpoints.local_repo_base_url` (``http://localhost:8080``,
-        env-overridable); pass ``base_url`` to override.
+        Defaults to :func:`endpoints.local_repo_base_url`; pass ``base_url`` to override.
         """
         resolved = base_url if base_url is not None else endpoints.local_repo_base_url()
         return cls(resolved, codec, validator, client=client)
@@ -61,9 +66,28 @@ class DppRepoClient(Generic[T]):
         return _http.probe_health(self._client, self._base_url)
 
     # --- lifecycle --------------------------------------------------------------
+    def close(self) -> None:
+        """Close the internally created HTTPX client, if this SDK instance owns it."""
+        if self._owns_client and not self._closed:
+            self._client.close()
+            self._closed = True
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
     def create_dpp(self, dpp: T) -> CreateDppResponse:
         try:
             self._validator(dpp)
+        except DppClientError:
+            raise
         except Exception as exc:  # noqa: BLE001 - re-raised as a client error
             raise DppValidationClientError("DPP validation failed before request") from exc
         body = self._serialize(dpp)
@@ -73,20 +97,36 @@ class DppRepoClient(Generic[T]):
         return CreateDppResponse.model_validate(payload)
 
     def read_dpp_by_id(self, dpp_id: str) -> T:
-        response = self._send("GET", self._dpp_path(dpp_id), None)
+        response = self._send("GET", self._full_dpp_path(dpp_id), None)
         return self._decode_dpp_payload(response)
 
     def read_dpp_by_product_id(self, product_id: str) -> T:
-        path = _DPPS_BY_PRODUCT_ID_PATH + _http.encode_segment(product_id)
+        path = self._full_product_dpp_path(product_id)
+        response = self._send("GET", path, None)
+        return self._decode_dpp_payload(response)
+
+    def read_compressed_dpp_by_id(self, dpp_id: str) -> Any:
+        response = self._send("GET", self._compressed_dpp_path(dpp_id), None)
+        return _http.require_payload(response)
+
+    def read_dpp_version_by_id_and_date(self, dpp_id: str, date: datetime) -> T:
+        path = (
+            _DPPS_BY_ID_AND_DATE_PATH
+            + _http.encode_segment(self._require_nonblank(dpp_id, "dppId"))
+            + "?date="
+            + _http.encode_segment(self._instant(date))
+            + "&representation=full"
+        )
         response = self._send("GET", path, None)
         return self._decode_dpp_payload(response)
 
     def read_dpp_version_by_product_id_and_date(self, product_id: str, date: datetime) -> T:
+        """Read deprecated unversioned product-ID history compatibility route."""
         path = (
             _DPPS_BY_PRODUCT_ID_AND_DATE_PATH
-            + _http.encode_segment(product_id)
+            + _http.encode_segment(self._require_nonblank(product_id, "productId"))
             + "?date="
-            + _http.encode_segment(date.isoformat())
+            + _http.encode_segment(self._instant(date))
         )
         response = self._send("GET", path, None)
         return self._decode_dpp_payload(response)
@@ -94,16 +134,14 @@ class DppRepoClient(Generic[T]):
     def read_dpp_ids_by_product_ids(
         self, product_ids: list[str], limit: int | None = None, cursor: str | None = None
     ) -> ReadDppIdsResponse:
-        request_body = ReadDppIdsRequest(
-            productIdentifiers=product_ids, limit=limit, cursor=cursor
-        )
+        request_body = ReadDppIdsRequest(productIdentifiers=product_ids, limit=limit, cursor=cursor)
         response = self._send("POST", _DPPS_BY_PRODUCT_IDS_PATH, request_body.model_dump_json())
         payload = _http.require_payload(response)
         _http.require_field(payload, "dppIdentifiers", "payload.dppIdentifiers")
         return ReadDppIdsResponse.model_validate(payload)
 
     def update_dpp_by_id(self, dpp_id: str, partial_dpp: Any) -> T:
-        body = json.dumps(partial_dpp)
+        body = self._serialize_partial_update(partial_dpp, "update_dpp_by_id")
         response = self._send("PATCH", self._dpp_path(dpp_id), body)
         return self._decode_dpp_payload(response)
 
@@ -117,7 +155,7 @@ class DppRepoClient(Generic[T]):
         return _http.require_payload(response)
 
     def update_data_element(self, dpp_id: str, element_path: str, payload: Any) -> Any:
-        body = json.dumps({"payload": payload})
+        body = self._serialize_partial_update(payload, "update_data_element")
         response = self._send("PATCH", self._data_element_path(dpp_id, element_path), body)
         return _http.require_payload(response)
 
@@ -128,24 +166,84 @@ class DppRepoClient(Generic[T]):
     def _serialize(self, dpp: T) -> str:
         try:
             json_str = self._codec.to_json(dpp)
+            if json_str is None:
+                raise ValueError("codec returned null JSON")
+        except DppClientError:
+            raise
         except Exception as exc:  # noqa: BLE001 - re-raised as a client error
             raise DppMappingClientError("DPP serialization failed before request") from exc
-        if json_str is None:
-            raise DppMappingClientError("codec returned null JSON")
         return json_str
+
+    @staticmethod
+    def _serialize_partial_update(payload: Any, operation: str) -> str:
+        """Encode a partial-update body as strict interoperable JSON before I/O."""
+        try:
+            return json.dumps(payload, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise DppMappingClientError(
+                f"{operation} payload serialization failed before request"
+            ) from exc
 
     def _decode_dpp_payload(self, response: Any) -> T:
         payload = _http.require_payload(response)
         payload_json = json.dumps(payload)
         try:
-            return self._codec.from_json(payload_json)
+            result = self._codec.from_json(payload_json)
+            if result is None:
+                raise ValueError("codec returned null DPP")
+            return result
+        except DppClientError:
+            raise
         except Exception as exc:  # noqa: BLE001 - re-raised as a client error
             raise DppMappingClientError("DPP deserialization failed after response") from exc
 
     @staticmethod
     def _dpp_path(dpp_id: str) -> str:
-        return _DPPS_PATH + "/" + _http.encode_segment(dpp_id)
+        return (
+            _DPPS_PATH
+            + "/"
+            + _http.encode_segment(DppRepoClient._require_nonblank(dpp_id, "dppId"))
+        )
+
+    @classmethod
+    def _full_dpp_path(cls, dpp_id: str) -> str:
+        return cls._dpp_path(dpp_id) + "?representation=full"
+
+    @classmethod
+    def _compressed_dpp_path(cls, dpp_id: str) -> str:
+        return cls._dpp_path(dpp_id) + "?representation=compressed"
+
+    @classmethod
+    def _full_product_dpp_path(cls, product_id: str) -> str:
+        return (
+            _DPPS_BY_PRODUCT_ID_PATH
+            + _http.encode_segment(cls._require_nonblank(product_id, "productId"))
+            + "?representation=full"
+        )
 
     @classmethod
     def _data_element_path(cls, dpp_id: str, element_path: str) -> str:
-        return cls._dpp_path(dpp_id) + "/elements/" + _http.encode_segment(element_path)
+        return (
+            cls._dpp_path(dpp_id)
+            + "/elements/"
+            + _http.encode_segment(cls._require_nonblank(element_path, "elementPath"))
+        )
+
+    @staticmethod
+    def _require_nonblank(value: str, field_name: str) -> str:
+        if not value or not value.strip():
+            raise ValueError(f"{field_name} must not be blank")
+        return value
+
+    @staticmethod
+    def _instant(value: datetime) -> str:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("date must be timezone-aware")
+        instant = value.astimezone(UTC)
+        if instant.microsecond == 0:
+            timespec = "seconds"
+        elif instant.microsecond % 1000 == 0:
+            timespec = "milliseconds"
+        else:
+            timespec = "microseconds"
+        return instant.isoformat(timespec=timespec).replace("+00:00", "Z")
