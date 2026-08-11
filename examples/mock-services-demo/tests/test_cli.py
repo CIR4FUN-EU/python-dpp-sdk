@@ -93,6 +93,12 @@ def _passed(scenario_id: str, category: str) -> ScenarioResult:
 
 @pytest.fixture(autouse=True)
 def stub_live_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ponytail: point the default config at the committed example profile so tests
+    # don't depend on a developer's gitignored .env (absent in CI/fresh clones).
+    monkeypatch.setenv(
+        "DPP_DEMO_ENV_FILE",
+        str(Path(__file__).resolve().parents[1] / ".env.example"),
+    )
     monkeypatch.setattr(
         cli,
         "run_repository_scenarios",
