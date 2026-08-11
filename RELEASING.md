@@ -71,6 +71,25 @@ Pushing a version tag starts `.github/workflows/release.yml`. The workflow build
 sdist and wheel, checks metadata and README rendering, publishes first to TestPyPI, and
 then uses the protected `pypi` environment for production publication.
 
+Run these from the repository root, in order, after the release changes are merged into
+the default branch on GitHub:
+
+```bash
+# 1. Get the merged release commit onto the default branch locally.
+git checkout main
+git pull
+
+# 2. Tag that commit with the version (must match src/dpp_sdk/__init__.py and CHANGELOG.md).
+git tag v0.4.0
+
+# 3. Push the tag to GitHub to start the release workflow.
+git push origin v0.4.0
+```
+
+The tag must point at a commit already on GitHub's default branch, and its name must match
+the intended version. Once the tag is pushed, the workflow runs automatically — no further
+commands are needed. Do not delete or move a tag after the workflow has published it.
+
 Both package indexes must configure this repository's GitHub Actions workflow as an
 OIDC Trusted Publisher. No API token belongs in the repository.
 
