@@ -10,15 +10,11 @@ Docker, Spring, or internal Java routes.
 
 ![Python SDK package boundaries](architecture/python-sdk-overview.svg)
 
-*Diagram: applications use reusable core models directly or use the furniture aggregate. Generic
-clients are independent of either model package; the optional Java-services demo consumes the
-installed SDK rather than becoming part of it.*
-
 `dpp_sdk.core` owns reusable immutable models, structural constraints, and core semantic
 validation. `dpp_sdk.dpp4fun` builds on core and owns the furniture aggregate, its semantic
-validation, and flat/nested JSON mapping. `dpp_sdk.clients` owns synchronous generic HTTP clients,
-client payload DTOs, and client error boundaries; applications supply a codec and validator to
-`DppRepoClient` for typed repository values.
+validation, and flat/nested JSON mapping. `dpp_sdk.clients` stays model-independent and performs
+HTTP calls with a caller-supplied codec and validator. The Mock-services demo is optional and uses
+the installed SDK against Java repository and registry images.
 
 ## Supported concepts
 
@@ -32,12 +28,12 @@ not run, configure, or persist those services.
 This repository does not provide a repository or registry server, persistence, lifecycle storage,
 Docker or Spring runtime behavior, PostgreSQL integration, Postman/Swagger artifacts, internal Java
 routes, authentication, retries, caching, pagination, or registry read-back/cleanup operations.
-The Java-services demo is optional compatibility evidence and is not an SDK dependency.
+The Mock-services demo is optional compatibility evidence and is not an SDK dependency.
 
 ## Prerequisites
 
 Use Python 3.11 or newer. Docker and Compose are required only for the separate
-[Java-services demo](../examples/java-services-demo/README.md).
+[Mock-services demo](../examples/mock-services-demo/README.md).
 
 ## Reading order and next steps
 

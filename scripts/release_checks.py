@@ -68,7 +68,7 @@ def validate_release_workflow(workflow: str) -> list[str]:
         "quality:",
         "needs: quality",
         "python -m pytest",
-        "python -m pytest examples/java-services-demo",
+        "python -m pytest examples/mock-services-demo",
         "ruff check .",
         "ruff format --check .",
         "mypy",

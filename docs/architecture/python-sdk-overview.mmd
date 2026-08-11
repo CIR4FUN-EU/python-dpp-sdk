@@ -1,6 +1,24 @@
-flowchart LR
-  App["Python application"] --> Core["dpp_sdk.core"]
-  Core --> Furniture["dpp_sdk.dpp4fun"]
-  App --> Clients["dpp_sdk.clients"]
-  Clients --> Api["Public DPP APIs"]
-  Demo["Optional Java-services demo"] -. installed SDK .-> Clients
+flowchart TB
+  subgraph Normal["Normal application use"]
+    direction LR
+    App["My Python application"]
+    Core["Reusable Core<br/>dpp_sdk.core"]
+    Dpp4Fun["DPP4Fun<br/>dpp_sdk.dpp4fun"]
+    Clients["HTTP Clients<br/>dpp_sdk.clients"]
+    APIs["DPP repository / registry APIs"]
+
+    App -->|uses directly| Core
+    App -->|uses| Dpp4Fun
+    Dpp4Fun -->|depends on| Core
+    App -->|uses| Clients
+    Clients -->|HTTP| APIs
+  end
+
+  subgraph Optional["Optional demo / verification"]
+    direction LR
+    Demo["Mock-services demo<br/>uses the installed Python SDK"]
+    Java["Java mock-service APIs<br/>repository + registry images"]
+    Demo -->|HTTP through public Clients| Java
+  end
+
+  Normal ~~~ Optional

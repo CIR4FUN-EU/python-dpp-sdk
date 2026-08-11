@@ -13,8 +13,8 @@ or a standalone reusable-core JSON codec.
 
 ![DPP4Fun aggregate boundary](../../../docs/architecture/python-dpp4fun-model.svg)
 
-*Diagram: a DPP4Fun passport combines a core passport with furniture details and an optional Bill
-of Materials. Validation is explicit; JSON transport is a separate flat/nested mapping boundary.*
+`dpp_sdk.dpp4fun` adds a furniture aggregate, its explicit semantic validation, and flat/nested
+JSON mapping. It depends on reusable Core contracts and remains independent of the HTTP clients.
 
 The models are frozen Pydantic models. Contracted collections are immutable tuples in memory and
 JSON arrays on the wire.

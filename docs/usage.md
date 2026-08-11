@@ -31,7 +31,7 @@ right choice and when local source installation is appropriate. For a local chec
 repository's development environment and run its configured checks from the repository root
 through the [release guide](../RELEASING.md). **Expected result:** an installed `dpp_sdk` import.
 **Cleanup:** none. The
-[Java-services demo](../examples/java-services-demo/README.md) has separate installation
+[Mock-services demo](../examples/mock-services-demo/README.md) has separate installation
 instructions because it is a separate, unpublished consumer package.
 
 ## Imports

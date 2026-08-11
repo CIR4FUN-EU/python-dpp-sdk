@@ -14,8 +14,8 @@ registry services, persistence, or lifecycle-event storage.
 
 ![Core model boundary](../../../docs/architecture/python-core-model.svg)
 
-*Diagram: core owns reusable frozen models, explicit core validation, and shared errors. DPP4Fun
-uses this boundary without creating a reverse dependency.*
+`dpp_sdk.core` provides reusable frozen DPP models, explicit semantic validation, and shared
+errors. It does not depend on DPP4Fun or the HTTP clients.
 
 All public models are frozen Pydantic models. Construction checks the shape of the data; call
 `validate_dpp_core()` when you want to check the business rules as well.

@@ -1,0 +1,124 @@
+name: Mock services demo verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Mock image profile
+        required: true
+        default: 0.5.1
+        type: choice
+        options:
+          - 0.5.1
+          - pinned
+          - 0.5.0
+          - 0.4.0
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEMO_DIR: examples/mock-services-demo
+      COMPOSE_PROJECT_NAME: dpp-py-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build isolated wheels
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+          python -m build "$DEMO_DIR" --outdir "$DEMO_DIR/dist"
+          python -m venv .mock-services-demo-venv
+          .mock-services-demo-venv/bin/python -m pip install \
+            dist/dpp_sdk-0.4.0-py3-none-any.whl \
+            "$DEMO_DIR"/dist/dpp_sdk_mock_services_demo-0.1.0-py3-none-any.whl
+          .mock-services-demo-venv/bin/python -m pip check
+
+      - name: Select image profile
+        run: |
+          echo "DEMO_ENV_FILE=$GITHUB_WORKSPACE/$DEMO_DIR/env/${{ inputs.profile }}.env" \
+            >> "$GITHUB_ENV"
+
+      - name: Pull and start disposable services
+        run: |
+          docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" pull
+          docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+            up -d --wait --wait-timeout 120
+
+      - name: Run installed-wheel verification
+        run: |
+          mkdir -p artifacts
+          outside="$(mktemp -d)"
+          sdk_wheel="$GITHUB_WORKSPACE/dist/dpp_sdk-0.4.0-py3-none-any.whl"
+          report="$GITHUB_WORKSPACE/artifacts/verification-report-${{ inputs.profile }}.json"
+          set +e
+          if [ "${{ inputs.profile }}" = "0.4.0" ]; then
+            (cd "$outside" && "$GITHUB_WORKSPACE/.mock-services-demo-venv/bin/python" -I \
+              -m dpp_mock_services_demo.maintainer verify --env-file "$DEMO_ENV_FILE" --legacy \
+              --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
+              --report-file "$report")
+          else
+            (cd "$outside" && "$GITHUB_WORKSPACE/.mock-services-demo-venv/bin/python" -I \
+              -m dpp_mock_services_demo.maintainer verify --env-file "$DEMO_ENV_FILE" \
+              --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
+              --report-file "$report")
+          fi
+          verify_exit=$?
+          set -e
+          rmdir "$outside"
+
+          if [ "${{ inputs.profile }}" = "pinned" ]; then
+            policy="$(.mock-services-demo-venv/bin/python -c 'import json,sys; from dpp_mock_services_demo.workflow_policy import classify_pinned_report; print(classify_pinned_report(json.load(open(sys.argv[1]))))' "$report")"
+            if [ "$policy" = "RUN_051" ]; then
+              docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+                down --remove-orphans
+              DEMO_ENV_FILE="$GITHUB_WORKSPACE/$DEMO_DIR/env/0.5.1.env"
+              echo "DEMO_ENV_FILE=$DEMO_ENV_FILE" >> "$GITHUB_ENV"
+              docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" pull
+              docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+                up -d --wait --wait-timeout 120
+              outside="$(mktemp -d)"
+              (cd "$outside" && "$GITHUB_WORKSPACE/.mock-services-demo-venv/bin/python" -I \
+                -m dpp_mock_services_demo.maintainer verify --env-file "$DEMO_ENV_FILE" \
+                --compose-project "$COMPOSE_PROJECT_NAME" --sdk-wheel "$sdk_wheel" \
+                --report-file "$GITHUB_WORKSPACE/artifacts/verification-report-0.5.1.json")
+              rmdir "$outside"
+              exit 0
+            fi
+            test "$policy" = "COMPLETE"
+          fi
+          exit "$verify_exit"
+
+      - name: Capture Compose evidence
+        if: always()
+        run: |
+          mkdir -p artifacts
+          docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+            ps --all > artifacts/compose-ps.txt 2>&1 || true
+          docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+            images --format json > artifacts/compose-images.json 2>&1 || true
+          docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+            logs --no-color --timestamps > artifacts/compose.log 2>&1 || true
+
+      - name: Tear down disposable services
+        if: always()
+        run: |
+          docker compose -f "$DEMO_DIR/compose.yaml" --env-file "$DEMO_ENV_FILE" \
+            down --remove-orphans
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mock-services-demo-${{ inputs.profile }}-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: error

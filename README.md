@@ -4,20 +4,17 @@
 to describe a passport, check it, turn it into JSON, and call a DPP repository or registry API.
 
 It is a client library, not a service. It does not run a repository or registry, store data, or
-provide Docker, Spring, EDC, or dataspace features. The Java-services demo is a separate optional
+provide Docker, Spring, EDC, or dataspace features. The Mock-services demo is a separate optional
 consumer of this SDK.
 
 ## Architecture at a glance
 
 ![Python SDK architecture](docs/architecture/python-sdk-overview.svg)
 
-*Diagram: your application can use core models directly or through DPP4Fun. It can also use the
-generic HTTP clients; the separate demo uses those same public clients against disposable Java
-services.*
-
-`dpp_sdk.dpp4fun` builds on `dpp_sdk.core`. `dpp_sdk.clients` is separate and generic: your
-application tells it how to check and convert its own passport model. The clients do not depend on
-the concrete core or DPP4Fun packages.
+`dpp_sdk.core` contains reusable DPP models and validation. `dpp_sdk.dpp4fun` builds its furniture
+model, validation, and JSON mapping on Core, while `dpp_sdk.clients` stays model-independent and
+performs the HTTP calls. The Mock-services demo is optional: it uses the installed SDK and public
+clients against Java repository and registry images.
 
 
 ## Standards alignment
@@ -45,7 +42,7 @@ be published here. This documentation describes only the behavior implemented by
 - The Python SDK does not record lifecycle events or keep a lifecycle-event history.
 - Authentication, backup/recovery, retries, persistence, and other production operations are not
   provided.
-- The SDK calls public `/v1/...` service routes. Java demo `/internal/...` routes are not Python
+- The SDK calls public `/v1/...` service routes. Mock demo `/internal/...` routes are not Python
   client methods.
 - No real EU registry integration, production security hardening, or production-operational
   guarantee is provided.
@@ -64,7 +61,7 @@ Choose the smallest part that matches your job:
 | understand package boundaries | [SDK overview](docs/overview.md) |
 | look up model fields and JSON/null semantics | [Model guide](docs/model-guide.md) |
 | look up semantic validation rules | [Validation rules](docs/validation-rules.md) |
-| try disposable Java services locally | [Java-services demo](examples/java-services-demo/README.md) |
+| try disposable mock services locally | [Mock-services demo](examples/mock-services-demo/README.md) |
 | prepare a package release | [Release guide](RELEASING.md) |
 | review changes or licensing | [Changelog](CHANGELOG.md) · [License](LICENSE) |
 
@@ -72,7 +69,7 @@ Choose the smallest part that matches your job:
 ## Prerequisites
 
 - **All SDK users:** Python 3.11 or newer.
-- **Only for the optional live Java-services demo:** Docker Engine with Compose v2, Docker Buildx
+- **Only for the optional live Mock-services demo:** Docker Engine with Compose v2, Docker Buildx
   for the demo's image-identity check, and access to the public GHCR image references.
 
 You do not need Docker, Compose, Buildx, or GHCR access to install the SDK, use its models, or run
@@ -171,7 +168,7 @@ longer need this checkout environment.
 ```
 
 `dpp-sdk` is the single package that contains the core, DPP4Fun, clients, and public payload
-models. The separately installed `dpp-sdk-java-services-demo` package is reference/demo code, not
+models. The separately installed `dpp-sdk-mock-services-demo` package is reference/demo code, not
 a dependency that ordinary SDK users need.
 
 **Expected result:** the same interpreter imports the intended SDK:
@@ -194,14 +191,14 @@ All local commands in this section run from the repository root, the directory c
 1. Choose a published install above, or create `.venv` and install this checkout.
 2. Run the import probe above, then use the small SDK example below.
 3. Run the SDK-only educational walkthrough after following the isolated-wheel setup in the
-   [Java-services demo guide](examples/java-services-demo/README.md#quick-start):
-   `./.java-services-demo-venv/Scripts/python.exe -m dpp_java_services_demo sdk` on PowerShell, or
-   `./.java-services-demo-venv/bin/python -m dpp_java_services_demo sdk` on Linux/macOS. Use
+   [Mock-services demo guide](examples/mock-services-demo/README.md#quick-start):
+   `./.mock-services-demo-venv/Scripts/python.exe -m dpp_mock_services_demo sdk` on PowerShell, or
+   `./.mock-services-demo-venv/bin/python -m dpp_mock_services_demo sdk` on Linux/macOS. Use
    `--summary` for compact verification or `--json` for machine-readable evidence.
 4. Run SDK tests with the development interpreter; focused core, validation, client, and
    documentation commands are owned by the [release guide](RELEASING.md).
-5. Only when you need live interoperability, follow the [Java-services demo guide]
-   (examples/java-services-demo/README.md) to start a uniquely named disposable project, run
+5. Only when you need live interoperability, follow the [Mock-services demo guide]
+   (examples/mock-services-demo/README.md) to start a uniquely named disposable project, run
    `demo`, `full`, or `verify`, inspect its report/logs, and tear down only that project.
 
 The demo guide owns its longer service commands and troubleshooting. Docker is never required for
@@ -266,145 +263,38 @@ Semantic validation is fail-fast. Models use immutable tuples for contracted col
 `with_updates()` to make a checked replacement instead of changing a model in place. Mapping
 failures in client code use `DppMappingClientError`; an HTTPX client you provide stays caller-owned.
 
-## Optional Java-services demo
+## Optional Mock-services demo
 
-The [Java-services demo](examples/java-services-demo/README.md) uses disposable Java repository
-and registry images to exercise the public Python clients. It is maintained against Java image
-version `0.5.1`; version `0.5.0` is retained as historical image evidence and version `0.4.0` is optional legacy evidence only.
-Its guide separates an SDK-only walkthrough, a curated live demonstration, a broad full health
-check, and strict verification; only strict verification makes package-provenance and image-identity
-claims.
-
-## Quick Java-service checks
-
-**Run from:** the Python repository root. These are the shortest useful commands when you want to
-exercise the Python SDK against the reusable Java repository and registry images. They do not need a
-Java source checkout. For environment setup, alternate ports, demo commands, logs, stopping, and
-permanent deletion, use the [Java-services demo guide](examples/java-services-demo/README.md).
-
-### 1. Start one isolated Java-service project
+Use Docker Compose to start the disposable repository and registry services, run the connected demo,
+then stop and remove the project. **Run from:** the Python repository root.
 
 ```powershell
-$demoDir = (Resolve-Path .\examples\java-services-demo).Path
-$envFile = Join-Path $demoDir ".env"
-if (-not (Test-Path -LiteralPath $envFile)) {
-  Copy-Item (Join-Path $demoDir ".env.example") $envFile
-  Write-Host "Created $envFile. Edit COMPOSE_PROJECT_NAME and paired port/base-URL values before starting."
-}
-$demoConfig = ConvertFrom-StringData -StringData (
-  (Get-Content -LiteralPath $envFile |
-    Where-Object { $_ -match '^(COMPOSE_PROJECT_NAME|DPP_REPO_BASE_URL|DPP_REGISTRY_BASE_URL)=' }) -join "`n"
-)
-$project = $demoConfig.COMPOSE_PROJECT_NAME
-Write-Host "Using Compose project: $project"
-$env:DPP_REPO_BASE_URL = $demoConfig.DPP_REPO_BASE_URL
-$env:DPP_REGISTRY_BASE_URL = $demoConfig.DPP_REGISTRY_BASE_URL
-& (Join-Path $demoDir "manage-java-services.ps1") -Action Start -EnvFile $envFile
-```
-
-The two endpoint variables make the live Python test commands below use the same repository and
-registry URLs selected in `.env`.
-
-### If Windows PowerShell blocks scripts
-
-Do not change your execution policy. Use these native Docker Compose commands instead; they reuse
-the same `.env` file, project name, ports, images, and endpoint variables prepared above.
-
-```powershell
-docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile config --quiet
-docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile pull --policy missing
-docker compose -f (Join-Path $demoDir "compose.yaml") -p $project --env-file $envFile up -d --wait --wait-timeout 120
-Invoke-RestMethod "$($env:DPP_REPO_BASE_URL)/health"
-Invoke-RestMethod "$($env:DPP_REGISTRY_BASE_URL)/health"
-```
-
-Both health results must report `status: UP`. For project-scoped status, logs, stopping, and volume
-deletion without the script, use the native Compose commands in the demo [operations reference](examples/java-services-demo/OPERATIONS.md).
-
-### 2. Run Python unit and controlled tests only
-
-**What this does:** runs the root Python suite while explicitly excluding marked live integration
-tests. It does not need Docker or Java services.
-
-```powershell
-& .\.venv\Scripts\python.exe -m pytest .\tests -m "not integration"
-```
-
-### 3. Run complete Python-to-Java live tests
-
-Run this only after the successful Start command above. These tests call the already-running Java
-images through the public Python SDK clients; they do not start Docker themselves.
-
-```powershell
-& .\.venv\Scripts\python.exe -m pytest .\tests\test_integration_live.py --run-java-services
-& .\.venv\Scripts\python.exe -m pytest -c .\examples\java-services-demo\pyproject.toml `
-  .\examples\java-services-demo\tests --run-java-services
-```
-
-## Linux/macOS quick checks
-
-Run these from the same repository root when PowerShell is not your shell. They use the same
-reusable lifecycle script and service-test boundary as the PowerShell commands above.
-
-```bash
-demo_dir="$(pwd)/examples/java-services-demo"
-env_file="$demo_dir/.env"
-if [ ! -f "$env_file" ]; then
-  cp "$demo_dir/.env.example" "$env_file"
-  printf '%s\n' "Created $env_file. Edit COMPOSE_PROJECT_NAME and paired port/base-URL values before starting."
-fi
-project="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$env_file" | head -n 1)"
-printf 'Using Compose project: %s\n' "$project"
-export DPP_REPO_BASE_URL="$(sed -n 's/^DPP_REPO_BASE_URL=//p' "$env_file" | head -n 1)"
-export DPP_REGISTRY_BASE_URL="$(sed -n 's/^DPP_REGISTRY_BASE_URL=//p' "$env_file" | head -n 1)"
-pwsh -File "$demo_dir/manage-java-services.ps1" -Action Start -EnvFile "$env_file"
-
-# Python unit and controlled tests only — no Docker or Java service calls.
-.venv/bin/python -m pytest ./tests -m "not integration"
-
-# Complete Python-to-Java live test suites; requires the successful Start command above.
-.venv/bin/python -m pytest ./tests/test_integration_live.py --run-java-services
-.venv/bin/python -m pytest -c ./examples/java-services-demo/pyproject.toml \
-  ./examples/java-services-demo/tests --run-java-services
-```
-
-### Run the optional Java services from another location
-
-**What this does:** starts an isolated repository-and-registry stack from published Java repository
-and registry images selected by `.env`; it
-does not need a Java source checkout. Copy the complete `examples/java-services-demo` directory
-(the script needs its adjacent `compose.yaml` and `env/` profiles) wherever you want to run the
-stack. Copy `.env.example` to `.env`, then edit `COMPOSE_PROJECT_NAME` and paired port/base-URL
-values before starting it:
-
-```powershell
-$demoDir = (Resolve-Path .\java-services-demo).Path
+$demoDir = (Resolve-Path .\examples\mock-services-demo).Path
 $envFile = Join-Path $demoDir ".env"
 if (-not (Test-Path -LiteralPath $envFile)) {
   Copy-Item (Join-Path $demoDir ".env.example") $envFile
 }
-pwsh -File (Join-Path $demoDir "manage-java-services.ps1") -Action Start -EnvFile $envFile
+$composeFile = Join-Path $demoDir "compose.yaml"
+$project = "dpp-mock-services-demo-local"
+docker compose --env-file $envFile -f $composeFile -p $project up -d --wait
+& .\.venv\Scripts\python.exe -m dpp_mock_services_demo demo --env-file $envFile
+docker compose --env-file $envFile -f $composeFile -p $project down -v
 ```
 
-Linux/macOS (with PowerShell 7 installed):
+## Linux/macOS
 
 ```bash
-demo_dir="$(cd ./java-services-demo && pwd)"
+demo_dir="$(cd ./examples/mock-services-demo && pwd)"
 env_file="$demo_dir/.env"
-if [ ! -f "$env_file" ]; then
-  cp "$demo_dir/.env.example" "$env_file"
-fi
-pwsh -File "$demo_dir/manage-java-services.ps1" -Action Start -EnvFile "$env_file"
+[ -f "$env_file" ] || cp "$demo_dir/.env.example" "$env_file"
+docker compose --env-file "$env_file" -f "$demo_dir/compose.yaml" -p dpp-mock-services-demo-local up -d --wait
+.venv/bin/python -m dpp_mock_services_demo demo --env-file "$env_file"
+docker compose --env-file "$env_file" -f "$demo_dir/compose.yaml" -p dpp-mock-services-demo-local down -v
 ```
 
-The script validates the Compose profile, pulls missing images, starts the project, and checks
-both service health endpoints. The [demo guide](examples/java-services-demo/README.md) owns the
-labelled status, logs, stop, deletion, and educational-demo commands.
-
-When that optional stack is running, open the repository or registry URL configured in `.env` in a
-browser for the Java service Swagger UI. The `.env.example` default URLs are `http://localhost:18080/`
-and `http://localhost:18081/`. Use `/health` for a simple health check and `/v3/api-docs` for the
-service OpenAPI JSON. These are Java demo service endpoints, not endpoints provided by the Python package.
+For tests, alternate configuration, logs, and troubleshooting, see the
+[Mock-services demo guide](examples/mock-services-demo/README.md) and
+[ADVANCED_OPERATIONS.md](examples/mock-services-demo/ADVANCED_OPERATIONS.md).
 
 ## Documentation and next steps
 
@@ -414,4 +304,4 @@ field/default/null behavior, the [validation guide](docs/validation-guide.md) an
 [validation-rule reference](docs/validation-rules.md) for validation and codec behavior, and the
 [clients guide](src/dpp_sdk/clients/README.md) for every public HTTP operation and payload. The
 [release guide](RELEASING.md) owns development and release validation; the separate
-[Java-services demo](examples/java-services-demo/README.md) owns its optional service lifecycle.
+[Mock-services demo](examples/mock-services-demo/README.md) owns its optional service lifecycle.

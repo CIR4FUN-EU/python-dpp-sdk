@@ -9,7 +9,7 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 ## [0.4.0]
 
 ### Added
-- An isolated `examples/java-services-demo` consumer project with reproducible Java image
+- An isolated `examples/mock-services-demo` consumer project with reproducible Mock image
   profiles, pull-only memory-mode Compose infrastructure, SDK-01 through SDK-17, complete public
   repository/registry interoperability scenarios, controlled edge contracts, installed-import
   proof, dynamic image identity evidence, and retained verification reports.
@@ -27,14 +27,14 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   externally supplied endpoint.
 
 ### Fixed
-- The installed Java-services demo's SDK-only modes now defer service-profile loading, so `sdk`
+- The installed Mock-services demo's SDK-only modes now defer service-profile loading, so `sdk`
   and `sdk --json` run from an installed nested wheel without a checkout or `env/pinned.env`.
-- Java-services demo configuration tests now isolate service environment variables, so documented
+- Mock-services demo configuration tests now isolate service environment variables, so documented
   alternate host-port overrides cannot contaminate profile/default assertions.
 - Bill-of-materials validation now rejects null material, component, and part members
   with fail-fast indexed `DppValidationError` paths instead of leaking `AttributeError`.
-- History reads now normalize timezone-aware datetimes to the Java-compatible canonical UTC
-  `Z` query wire, including Java-compatible fractional-second precision.
+- History reads now normalize timezone-aware datetimes to the Mock-compatible canonical UTC
+  `Z` query wire, including Mock-compatible fractional-second precision.
 - Repository identifiers and element paths now use exact dynamic-segment percent encoding,
   preserving literal `*` while encoding `~`, `%`, `?`, and `#`.
 - Repository and registry clients now reject null response payloads, null codec results, and
@@ -63,7 +63,7 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 - Aggregate validators document and test their supported public boundary and fail-fast order;
   arbitrary `model_construct()` corruption is not a public compatibility contract.
 - Root and module READMEs now use plain-language entry points, explain Python client payload models,
-  distinguish optional Java-demo prerequisites, and include focused Mermaid diagrams with captions.
+  distinguish optional Mock-demo prerequisites, and include focused Mermaid diagrams with captions.
 
 ### Compatibility
 - `UpdateDataElementRequest` remains importable only as a compatibility DTO; it does not affect
@@ -84,7 +84,7 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 
 ## [0.1.0] — Initial release
 
-First public release of the Python port of the Java DPP SDK.
+First public release of the Python port of the Mock DPP SDK.
 
 ### Added
 - `dpp_sdk.core` — core DPP model, validation, and identifiers (Pydantic v2).

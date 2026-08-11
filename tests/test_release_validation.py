@@ -14,7 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_CHECKS = ROOT / "scripts" / "release_checks.py"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
-JAVA_SERVICES_WORKFLOW = ROOT / ".github" / "workflows" / "java-services-demo.yml"
+MOCK_SERVICES_WORKFLOW = ROOT / ".github" / "workflows" / "mock-services-demo.yml"
 
 
 def _release_checks():
@@ -32,7 +32,7 @@ def _current_package_version() -> str:
 def test_archive_member_policy_rejects_local_environment_and_internal_paths() -> None:
     checks = _release_checks()
     forbidden = (
-        ".java-services-demo-venv/Lib/site-packages/httpx/__init__.py",
+        ".mock-services-demo-venv/Lib/site-packages/httpx/__init__.py",
         ".venv/bin/python",
         "nested/env/lib/python3.12/site-packages/pydantic/__init__.py",
         "nested/dist-packages/httpx/__init__.py",
@@ -41,7 +41,7 @@ def test_archive_member_policy_rejects_local_environment_and_internal_paths() ->
         ".codex/task-logs/run.md",
         "AGENTS.md",
         "docs/python-agent-drafts/notes.md",
-        "examples/java-services-demo/verification-report.json",
+        "examples/mock-services-demo/verification-report.json",
         "build/output.whl",
         "dist/output.whl",
     )
@@ -163,13 +163,13 @@ def test_0_4_0_release_surface_keeps_exact_sdk_consumers_in_sync() -> None:
     package = (ROOT / "src" / "dpp_sdk" / "__init__.py").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    demo_pyproject = (ROOT / "examples" / "java-services-demo" / "pyproject.toml").read_text(
+    demo_pyproject = (ROOT / "examples" / "mock-services-demo" / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    demo_readme = (ROOT / "examples" / "java-services-demo" / "README.md").read_text(
+    demo_readme = (ROOT / "examples" / "mock-services-demo" / "README.md").read_text(
         encoding="utf-8"
     )
-    workflow = JAVA_SERVICES_WORKFLOW.read_text(encoding="utf-8")
+    workflow = MOCK_SERVICES_WORKFLOW.read_text(encoding="utf-8")
 
     assert '__version__ = "0.4.0"' in package
     assert "## [0.4.0]" in changelog

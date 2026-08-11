@@ -1,3 +1,5 @@
 flowchart LR
-  App["Python application"] --> Repo["DppRepoClient"] --> RepoApi["Public repository API"]
-  App --> Registry["DppRegistryClient"] --> RegistryApi["Public registry API"]
+  App["Python application"] -->|uses| Repo["Repository Client<br/>DppRepoClient"]
+  App -->|uses| Registry["Registry Client<br/>DppRegistryClient"]
+  Repo -->|HTTP| RepoApi["Public repository API"]
+  Registry -->|HTTP| RegistryApi["Public registry API"]

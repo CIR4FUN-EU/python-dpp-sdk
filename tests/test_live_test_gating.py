@@ -1,4 +1,4 @@
-"""Subprocess regressions for the opt-in Java-service test boundary."""
+"""Subprocess regressions for the opt-in Mock-service test boundary."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 SDK_ROOT = Path(__file__).resolve().parents[1]
-DEMO_ROOT = SDK_ROOT / "examples" / "java-services-demo"
+DEMO_ROOT = SDK_ROOT / "examples" / "mock-services-demo"
 _SERVICE_ENVIRONMENT_KEYS = (
     "DPP_REPO_BASE_URL",
     "DPP_REGISTRY_BASE_URL",
@@ -133,7 +133,7 @@ def _pytest(
 
 
 def test_root_live_tests_do_not_contact_healthy_configured_services_without_opt_in() -> None:
-    """Environment-configured healthy services must not bypass ``--run-java-services``."""
+    """Environment-configured healthy services must not bypass ``--run-mock-services``."""
     with _recording_service() as repository, _recording_service() as registry:
         result = _pytest(
             ["tests/test_integration_live.py"],
@@ -145,7 +145,7 @@ def test_root_live_tests_do_not_contact_healthy_configured_services_without_opt_
         )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "requires --run-java-services" in result.stdout
+    assert "requires --run-mock-services" in result.stdout
     assert repository.records == []
     assert registry.records == []
 
@@ -190,7 +190,7 @@ httpx.Client.request = _recording_request
 def test_explicit_opt_in_runs_root_live_tests_against_configured_alternate_ports() -> None:
     with _recording_service() as repository, _recording_service() as registry:
         result = _pytest(
-            ["--run-java-services", "tests/test_integration_live.py"],
+            ["--run-mock-services", "tests/test_integration_live.py"],
             cwd=SDK_ROOT,
             env=_environment(
                 DPP_REPO_BASE_URL=_base_url(repository),
@@ -221,10 +221,10 @@ def test_live_marker_remains_discoverable_and_controlled_client_tests_need_no_se
 
 def test_nested_demo_live_tests_remain_opt_in_without_services() -> None:
     result = _pytest(
-        ["tests/test_java_services_integration.py"],
+        ["tests/test_mock_services_integration.py"],
         cwd=DEMO_ROOT,
         env=_environment(),
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "requires --run-java-services" in result.stdout
+    assert "requires --run-mock-services" in result.stdout

@@ -10,7 +10,9 @@ The module does not run a service or provide authentication, retries, async clie
 
 ![Python client request flow](../../../docs/architecture/python-client-request-flow.svg)
 
-*Diagram: repository calls carry complete/partial DPP data; registry calls carry registration metadata. Both call a URL supplied by the application.*
+`DppRepoClient` sends complete or partial passport data to a configured repository API using a
+caller-supplied codec and validator. `DppRegistryClient` sends registration metadata to a
+configured registry API. The clients perform HTTP calls but do not run either service.
 
 Create a repository client with a base URL, DppCodec[T], and validator. The built-in furniture pair is Dpp4FunJsonCodec() and validate_dpp4fun. A client-created HTTPX client is closed by close() or the with block; an injected client remains caller-owned.
 
@@ -288,7 +290,7 @@ incoming_json = '{"dppIdentifiers":["DPP-1"],"nextCursor":null}'
 assert ReadDppIdsResponse.model_validate_json(incoming_json).dppIdentifiers == ["DPP-1"]
 ~~~
 
-Service-specific status behavior belongs to the optional [Java-services demo](../../../examples/java-services-demo/README.md), not to this generic client contract. Compression, partial update, and element-path limitations are stated with their operations above.
+Service-specific status behavior belongs to the optional [Mock-services demo](../../../examples/mock-services-demo/README.md), not to this generic client contract. Compression, partial update, and element-path limitations are stated with their operations above.
 
 ## Focused client checks
 
