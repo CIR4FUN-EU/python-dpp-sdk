@@ -36,3 +36,4 @@ coverage.xml
 **/AGENTS.md
 **/CLAUDE.md
 **/.codex/
+/uv.lock
