@@ -37,11 +37,10 @@ release = [
 ]
 
 [project.urls]
-Homepage = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk"
-Repository = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk"
-Issues = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk/-/issues"
-Changelog = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-python-sdk/-/blob/main/CHANGELOG.md"
-Reference = "https://gitlab.cc-asp.fraunhofer.de/ipk-gfm/digital-product-passport-sdk/dpp-sdk-platform"
+Homepage = "https://github.com/CIR4FUN-EU/python-dpp-sdk"
+Repository = "https://github.com/CIR4FUN-EU/python-dpp-sdk"
+Issues = "https://github.com/CIR4FUN-EU/python-dpp-sdk/issues"
+Changelog = "https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "src/dpp_sdk/__init__.py"
