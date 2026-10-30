@@ -1,47 +1,28 @@
-"""HTTP client for the DPP registry API (port of ``HttpDppRegistryClient``)."""
+"""Generic JSON client for the final registry API."""
 
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Self
+from typing import Any, Self
 
 import httpx
 from pydantic import ValidationError
 
-from . import _http, endpoints
+from . import _http
 from .errors import DppMappingClientError
 from .payloads import RegisterDppRequest, RegisterDppResponse
 
-_REGISTER_PATH = "/v1/registerDPP"
-
 
 class DppRegistryClient:
+    """Synchronous JSON in/JSON out client for registry registration."""
+
     def __init__(self, base_url: str, *, client: httpx.Client | None = None) -> None:
         self._base_url = _http.normalize_base_url(base_url)
         self._owns_client = client is None
         self._client = client if client is not None else _http.build_client()
         self._closed = False
 
-    @classmethod
-    def for_local_mock(
-        cls,
-        *,
-        base_url: str | None = None,
-        client: httpx.Client | None = None,
-    ) -> DppRegistryClient:
-        """Build a client for a configurable local registry endpoint.
-
-        Defaults to :func:`endpoints.local_registry_base_url`; pass ``base_url`` to override.
-        """
-        resolved = base_url if base_url is not None else endpoints.local_registry_base_url()
-        return cls(resolved, client=client)
-
-    def health_check(self) -> bool:
-        """Return ``True`` if the registry service answers ``GET /health`` with a 2xx."""
-        return _http.probe_health(self._client, self._base_url)
-
     def close(self) -> None:
-        """Close the internally created HTTPX client, if this SDK instance owns it."""
         if self._owns_client and not self._closed:
             self._client.close()
             self._closed = True
@@ -57,27 +38,41 @@ class DppRegistryClient:
     ) -> None:
         self.close()
 
-    def post_new_dpp_to_registry(self, request: RegisterDppRequest) -> RegisterDppResponse:
+    def post_new_dpp_to_registry(
+        self, request: RegisterDppRequest | dict[str, Any]
+    ) -> RegisterDppResponse:
         if request is None:
-            cause = ValueError("request must not be null")
             raise DppMappingClientError(
                 "DPP registry request could not be mapped before request"
-            ) from cause
-        try:
-            body = request.model_dump_json()
-        except Exception as exc:  # noqa: BLE001 - re-raised as a client error
-            raise DppMappingClientError(
-                "DPP registry request could not be mapped before request"
-            ) from exc
-        response = _http.request_api(
-            self._client, "POST", _http.resolve(self._base_url, _REGISTER_PATH), body
+            ) from ValueError("request must not be null")
+        body = (
+            request.model_dump_json(by_alias=True, exclude_none=False)
+            if isinstance(request, RegisterDppRequest)
+            else _http.serialize_json(request)
         )
-        payload = _http.require_payload(response)
+        response = _http.request_api(
+            self._client, "POST", _http.resolve(self._base_url, "/v1/registerDPP"), body
+        )
+        payload = response.payload
+        if payload is None:
+            return RegisterDppResponse(status_code=response.status_code, message=response.message)
+        if not isinstance(payload, dict):
+            raise _missing_registry_payload()
+        registration_id = payload.get("registrationId")
+        if registration_id is not None and (
+            not isinstance(registration_id, str) or not registration_id.strip()
+        ):
+            raise _missing_registry_payload()
         try:
-            result = RegisterDppResponse.model_validate(payload)
+            return RegisterDppResponse(
+                status_code=response.status_code,
+                message=response.message,
+                registration_id=registration_id,
+            )
         except ValidationError as exc:
             raise DppMappingClientError("Registry response could not be mapped") from exc
-        _http.require_text_field(
-            {"registrationId": result.registrationId}, "registrationId", "payload.registrationId"
-        )
-        return result
+
+
+def _missing_registry_payload() -> DppMappingClientError:
+    message = "Missing required response field: payload"
+    return DppMappingClientError(message)

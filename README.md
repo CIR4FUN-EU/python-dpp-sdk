@@ -1,307 +1,280 @@
-# dpp-sdk (Python)
+# dpp-sdk
 
-`dpp-sdk` helps Python applications work with Digital Product Passports (DPPs). You can use it
-to describe a passport, check it, turn it into JSON, and call a DPP repository or registry API.
+`dpp-sdk` is a Python library for Digital Product Passports (DPPs). With it you can:
 
-It is a client library, not a service. It does not run a repository or registry, store data, or
-provide Docker, Spring, EDC, or dataspace features. The Mock-services demo is a separate optional
-consumer of this SDK.
+- describe a product passport in Python and check that it is valid,
+- turn it into JSON and back,
+- save it in a DPP **repository** and register it in a DPP **registry**.
 
-## Architecture at a glance
-
-![Python SDK architecture](docs/architecture/python-sdk-overview.svg)
-
-`dpp_sdk.core` contains reusable DPP models and validation. `dpp_sdk.dpp4fun` builds its furniture
-model, validation, and JSON mapping on Core, while `dpp_sdk.clients` stays model-independent and
-performs the HTTP calls. The Mock-services demo is optional: it uses the installed SDK and public
-clients against Java repository and registry images.
-
-
-## Standards alignment
-
-**EN 18222:2026:** The SDK implements selected public DPP repository and registry API shapes
-alongside the project DPP4Fun model, validation, and JSON rules. It is not a formal compliance implementation. It also makes no certification, legal-conformity, or production-readiness claim.
-
-Some API contracts were designed using confidential external technical specifications that cannot
-be published here. This documentation describes only the behavior implemented by this project.
-
-### What the SDK supports
-
-- Create, read, update, read historical versions of, and delete repository passports.
-- Register passport metadata with a registry.
-- Read a compressed passport as an untyped JSON value when the service provides one.
-
-## Known standards limitations
-
-- The registry request has no backup-operator field or backup-operator operation.
-- Compressed passports use a project-defined format. The SDK does not turn them into a typed
-  `Dpp4Fun` value automatically.
-- Partial updates and element paths are only partly implemented. The SDK sends the documented
-  requests, but it does not provide a complete generic implementation of RFC 7396 JSON Merge Patch
-  or a complete implementation of RFC 9535 JSONPath.
-- The Python SDK does not record lifecycle events or keep a lifecycle-event history.
-- Authentication, backup/recovery, retries, persistence, and other production operations are not
-  provided.
-- The SDK calls public `/v1/...` service routes. Mock demo `/internal/...` routes are not Python
-  client methods.
-- No real EU registry integration, production security hardening, or production-operational
-  guarantee is provided.
-
-
-## Start here
-
-Choose the smallest part that matches your job:
-
-| If you want to… | Start with… |
-| --- | --- |
-| describe reusable passport details | [Core module](src/dpp_sdk/core/README.md) |
-| work with furniture passports | [DPP4Fun module](src/dpp_sdk/dpp4fun/README.md) |
-| call a repository or registry API | [Clients module](src/dpp_sdk/clients/README.md) |
-| see a complete consumer walkthrough | [SDK usage](docs/usage.md) |
-| understand package boundaries | [SDK overview](docs/overview.md) |
-| look up model fields and JSON/null semantics | [Model guide](docs/model-guide.md) |
-| look up semantic validation rules | [Validation rules](docs/validation-rules.md) |
-| try disposable mock services locally | [Mock-services demo](examples/mock-services-demo/README.md) |
-| prepare a package release | [Release guide](RELEASING.md) |
-| review changes or licensing | [Changelog](CHANGELOG.md) · [License](LICENSE) |
-
-
-## Prerequisites
-
-- **All SDK users:** Python 3.11 or newer.
-- **Only for the optional live Mock-services demo:** Docker Engine with Compose v2, Docker Buildx
-  for the demo's image-identity check, and access to the public GHCR image references.
-
-You do not need Docker, Compose, Buildx, or GHCR access to install the SDK, use its models, or run
-the SDK-only demo checks.
+The clients work with any repository or registry that implements the EN 18222 API. For local
+testing, you can start example Java services with one command (see below).
 
 ## Install
 
-**Purpose:** install the published SDK for an application. **Run from:** any directory; these
-commands are directory-independent because pip downloads a named published distribution rather
-than reading this checkout. **Prerequisites:** Python 3.11 or newer on `PATH` and access to the
-selected package index.
-
-Choose the source deliberately:
-
-| Need | Install choice | Why |
-| --- | --- | --- |
-| ordinary application use | latest published `dpp-sdk` | uses the newest released distribution; no checkout is required |
-| repeatable deployment or compatibility testing | an exact published version such as `dpp-sdk==0.4.0` | prevents a later release from changing the installed SDK |
-| updates within one released minor line | a compatible version range such as `dpp-sdk~=0.4.0` | accepts compatible `0.4.x` fixes but not `0.5.0` |
-| contribution, an unreleased fix, or reproducing checkout state | install this local checkout | uses the source currently in this repository; it is not a substitute for a released package in production |
-
-Release tags are named `v<major>.<minor>.<patch>` (for example, `v0.4.0`), while pip version
-selectors omit the `v` (for example, `dpp-sdk==0.4.0`).
-
-### PowerShell
-
-```powershell
-python -m pip install dpp-sdk
-```
-
-### Linux/macOS
+You need Python 3.11 or newer.
 
 ```bash
-python -m pip install dpp-sdk
+pip install dpp-sdk
 ```
 
-### Install a selected published release
+## Create, save, and register a passport
 
-Use an exact version when deployment must be reproducible. Use `~=` only when your application
-has tested the compatible release line and can accept later patch releases.
+### 1. Start a repository and a registry
 
-#### PowerShell
+Skip this step if you already have EN 18222 services. Otherwise, start the example Java services
+locally. This needs [Docker](https://docs.docker.com/get-started/get-docker/) (on Windows and macOS:
+Docker Desktop, started).
+
+Download the service definition into an empty folder and start it:
+
+**Windows (PowerShell):**
 
 ```powershell
-python -m pip install "dpp-sdk==0.4.0"
-python -m pip install "dpp-sdk~=0.4.0"
+curl.exe -O https://raw.githubusercontent.com/CIR4FUN-EU/python-dpp-sdk/main/examples/mock-services-demo/compose.yaml
+docker compose up -d --wait
 ```
 
-#### Linux/macOS
+**Linux/macOS:**
 
 ```bash
-python -m pip install "dpp-sdk==0.4.0"
-python -m pip install "dpp-sdk~=0.4.0"
+curl -O https://raw.githubusercontent.com/CIR4FUN-EU/python-dpp-sdk/main/examples/mock-services-demo/compose.yaml
+docker compose up -d --wait
 ```
 
-### Install this local checkout
+When the command finishes, the repository runs at `http://localhost:8080` and the registry at
+`http://localhost:8081`.
 
-Use this only when you need the un-released source in this checkout, are contributing, or are
-reproducing a source-state issue. Create the repository-local `.venv` once when it is absent; it is
-local developer state and must not be committed.
+### 2. Run the workflow
 
-#### Create the development environment
-
-**Purpose:** create an isolated checkout environment with development and release tools.
-**Run from:** the Python repository root, the directory containing `pyproject.toml`.
-**Prerequisites:** Python 3.11 or newer on `PATH`.
-
-##### PowerShell
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,release]"
-```
-
-##### Linux/macOS
-
-```bash
-python -m venv .venv
-.venv/bin/python -m pip install -e ".[dev,release]"
-```
-
-**Expected result:** `.venv` contains an isolated editable SDK install plus the configured test,
-lint, type-check, build, and package-check tools. **Cleanup:** remove `.venv` only when you no
-longer need this checkout environment.
-
-#### PowerShell
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install .
-```
-
-#### Linux/macOS
-
-```bash
-.venv/bin/python -m pip install .
-```
-
-`dpp-sdk` is the single package that contains the core, DPP4Fun, clients, and public payload
-models. The separately installed `dpp-sdk-mock-services-demo` package is reference/demo code, not
-a dependency that ordinary SDK users need.
-
-**Expected result:** the same interpreter imports the intended SDK:
-
-```powershell
-.\.venv\Scripts\python.exe -c "import dpp_sdk; print(dpp_sdk.__version__)"
-```
-
-```bash
-.venv/bin/python -c "import dpp_sdk; print(dpp_sdk.__version__)"
-```
-
-**Cleanup:** none.
-
-## First use from this checkout
-
-All local commands in this section run from the repository root, the directory containing
-`pyproject.toml`.
-
-1. Choose a published install above, or create `.venv` and install this checkout.
-2. Run the import probe above, then use the small SDK example below.
-3. Run the SDK-only educational walkthrough after following the isolated-wheel setup in the
-   [Mock-services demo guide](examples/mock-services-demo/README.md#quick-start):
-   `./.mock-services-demo-venv/Scripts/python.exe -m dpp_mock_services_demo sdk` on PowerShell, or
-   `./.mock-services-demo-venv/bin/python -m dpp_mock_services_demo sdk` on Linux/macOS. Use
-   `--summary` for compact verification or `--json` for machine-readable evidence.
-4. Run SDK tests with the development interpreter; focused core, validation, client, and
-   documentation commands are owned by the [release guide](RELEASING.md).
-5. Only when you need live interoperability, follow the [Mock-services demo guide]
-   (examples/mock-services-demo/README.md) to start a uniquely named disposable project, run
-   `demo`, `full`, or `verify`, inspect its report/logs, and tear down only that project.
-
-The demo guide owns its longer service commands and troubleshooting. Docker is never required for
-the installation, SDK example, or SDK-only demo.
-
-## A small useful example
-
-Parse a furniture passport, check it, and turn it back into JSON:
+Save this as `workflow.py` in the same folder:
 
 ```python
-from dpp_sdk import from_json, to_json, validate_dpp4fun
+import json
+from datetime import UTC, datetime
+from uuid import uuid4
 
+from dpp_sdk import Dpp4FunJsonCodec, DppHeader, Granularity, validate_dpp4fun
+from dpp_sdk.clients import (
+    DppRegistryClient,
+    DppRepoClient,
+    DppRepresentation,
+    RegisterDppRequest,
+)
+from dpp_sdk.dpp4fun import ChairCharacteristics, Dpp4Fun, Nameplate
 
-def check_passport(raw_json: str) -> str:
-    passport = from_json(raw_json)
-    validate_dpp4fun(passport)
-    return to_json(passport)
+# Replace these with your own services. Any EN 18222 repository/registry works.
+REPO_URL = "http://localhost:8080"
+REGISTRY_URL = "http://localhost:8081"
+
+# 1. Create a passport for a blue chair.
+token = uuid4().hex  # unique IDs, so you can run this script more than once
+passport = Dpp4Fun.create(
+    DppHeader(
+        digital_product_passport_id=f"urn:example:dpp:{token}",
+        unique_product_identifier=f"urn:example:product:{token}",
+        granularity=Granularity.ITEM,
+        last_updated=datetime.now(UTC),
+        dpp_status="active",
+        economic_operator_id="urn:example:operator:demo",
+    ),
+    Nameplate.create(manufacturerName="Example Furniture"),
+    ChairCharacteristics.create(color="blue"),
+)
+
+# 2. Check it before sending it anywhere.
+report = validate_dpp4fun(passport)
+if not report.is_valid:
+    raise SystemExit(f"Passport is not valid: {report.issues}")
+
+# 3. Save it in the repository.
+full_json = json.loads(Dpp4FunJsonCodec().to_json(passport))
+with DppRepoClient(REPO_URL) as repository:
+    created = repository.create_dpp(full_json, DppRepresentation.FULL)
+passport_id = created.digital_product_passport_id or passport.header.digital_product_passport_id
+print("Saved passport:", passport_id)
+
+# 4. Register it, so others can find it.
+with DppRegistryClient(REGISTRY_URL) as registry:
+    registration = registry.post_new_dpp_to_registry(
+        RegisterDppRequest(
+            unique_product_identifier=passport.header.unique_product_identifier,
+            digital_product_passport_id=passport_id,
+            unique_economic_operator_identifier=passport.header.economic_operator_id,
+            dpp_api_endpoint=f"{REPO_URL}/v1/dpps",
+        )
+    )
+print("Registered:", registration.registration_id)
+
+# 5. Read it back as a typed passport.
+with DppRepoClient(REPO_URL) as repository:
+    response = repository.read_dpp_by_id(passport_id, DppRepresentation.FULL)
+loaded = Dpp4FunJsonCodec().from_json(json.dumps(response.payload))
+print("Manufacturer:", loaded.typed_aspect(Nameplate).field("manufacturerName").value)
 ```
 
-`from_json()` checks that the JSON has the right shape. `validate_dpp4fun()` checks the extra
-business rules. Run validation before relying on a passport or sending it to a service.
-
-## Store and read a passport
-
-Once you have a valid `Dpp4Fun` value and a repository URL, the generic client can store and read
-it. The same pattern works with your own model when you provide a codec and validator.
-
-```python
-from dpp_sdk import Dpp4Fun, Dpp4FunJsonCodec, validate_dpp4fun
-from dpp_sdk.clients import DppRepoClient
-
-
-def store_and_read(dpp: Dpp4Fun, repository_url: str) -> Dpp4Fun:
-    with DppRepoClient(
-        repository_url,
-        codec=Dpp4FunJsonCodec(),
-        validator=validate_dpp4fun,
-    ) as repository:
-        created = repository.create_dpp(dpp)
-        return repository.read_dpp_by_id(created.dppId)
-```
-
-For all operations, request and response payloads, errors, partial updates, and resource ownership,
-see the [clients module guide](src/dpp_sdk/clients/README.md).
-
-
-### Technical details
-
-Repository creation uses `POST /v1/dpps`; registry registration uses `POST /v1/registerDPP`. A
-registration request identifies its repository with `dppApiEndpoint="https://repo.example.com"`.
-Full reads use a typed model; compressed and fine-grained reads return the JSON value supplied by
-the service. The typed compressed-read method is `read_compressed_dpp_by_id()`.
-
-`UpdateDataElementRequest` remains importable for compatibility, while the normal fine-grained
-update sends its value directly. The client guide explains exact JSON field names, error types, and
-supported paths.
-
-`read_dpp_version_by_product_id_and_date()` remains a legacy compatibility only route. New code
-should use `read_dpp_version_by_id_and_date()` with a DPP ID.
-
-Semantic validation is fail-fast. Models use immutable tuples for contracted collections; use
-`with_updates()` to make a checked replacement instead of changing a model in place. Mapping
-failures in client code use `DppMappingClientError`; an HTTPX client you provide stays caller-owned.
-
-## Optional Mock-services demo
-
-Use Docker Compose to start the disposable repository and registry services, run the connected demo,
-then stop and remove the project. **Run from:** the Python repository root.
-
-```powershell
-$demoDir = (Resolve-Path .\examples\mock-services-demo).Path
-$envFile = Join-Path $demoDir ".env"
-if (-not (Test-Path -LiteralPath $envFile)) {
-  Copy-Item (Join-Path $demoDir ".env.example") $envFile
-}
-$composeFile = Join-Path $demoDir "compose.yaml"
-$project = "dpp-mock-services-demo-local"
-docker compose --env-file $envFile -f $composeFile -p $project up -d --wait
-& .\.venv\Scripts\python.exe -m dpp_mock_services_demo demo --env-file $envFile
-docker compose --env-file $envFile -f $composeFile -p $project down -v
-```
-
-## Linux/macOS
+Run it:
 
 ```bash
-demo_dir="$(cd ./examples/mock-services-demo && pwd)"
-env_file="$demo_dir/.env"
-[ -f "$env_file" ] || cp "$demo_dir/.env.example" "$env_file"
-docker compose --env-file "$env_file" -f "$demo_dir/compose.yaml" -p dpp-mock-services-demo-local up -d --wait
-.venv/bin/python -m dpp_mock_services_demo demo --env-file "$env_file"
-docker compose --env-file "$env_file" -f "$demo_dir/compose.yaml" -p dpp-mock-services-demo-local down -v
+python workflow.py
 ```
 
-For tests, alternate configuration, logs, and troubleshooting, see the
-[Mock-services demo guide](examples/mock-services-demo/README.md) and
-[ADVANCED_OPERATIONS.md](examples/mock-services-demo/ADVANCED_OPERATIONS.md).
+You should see three lines similar to:
 
-## Documentation and next steps
+```text
+Saved passport: urn:example:dpp:a06675bc10d4439e9b6de17e899c51b1
+Registered: e532b61a-d1cb-47dd-8589-ce6a2f387de8
+Manufacturer: Example Furniture
+```
 
-For a first integration, follow the [SDK usage guide](docs/usage.md). Use the [SDK overview]
-(docs/overview.md) to understand package boundaries, the [model guide](docs/model-guide.md) for
-field/default/null behavior, the [validation guide](docs/validation-guide.md) and
-[validation-rule reference](docs/validation-rules.md) for validation and codec behavior, and the
-[clients guide](src/dpp_sdk/clients/README.md) for every public HTTP operation and payload. The
-[release guide](RELEASING.md) owns development and release validation; the separate
-[Mock-services demo](examples/mock-services-demo/README.md) owns its optional service lifecycle.
+The clients send and return plain JSON (Python dicts), and the codecs read and write JSON strings.
+That is why the script uses `json.loads()` before sending and `json.dumps()` after reading.
+
+Steps 1 and 2 of the script (create and check) work without any service.
+
+To also read, update, look up older versions of, and delete a passport, see the
+[full lifecycle example](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/examples/consumer_lifecycle.py).
+
+### 3. Stop the services
+
+Run this in the same folder:
+
+```bash
+docker compose down
+```
+
+The stored data is kept for next time. To delete it too, run `docker compose down -v`.
+
+## How the SDK is organized
+
+<img src="https://raw.githubusercontent.com/CIR4FUN-EU/python-dpp-sdk/main/docs/architecture/python-sdk-overview.svg" alt="Diagram: your application uses the DPP4Fun profile, the Core models, and the Clients. DPP4Fun builds on Core. The Clients send HTTP requests to repository and registry APIs." width="560">
+
+| Part | What it does |
+| --- | --- |
+| `dpp_sdk.core` | General passport model, validation, and JSON conversion. |
+| `dpp_sdk.dpp4fun` | Ready-made furniture passport (chairs, sofas, …) built on Core. |
+| `dpp_sdk.clients` | HTTP clients for repositories and registries. They send and receive plain JSON and don't depend on the models. |
+
+## The DPP4Fun furniture passport
+
+`dpp_sdk.dpp4fun` is a ready-to-use passport for furniture, based on the DPP4Fun profile (D4.1).
+You fill it with typed Python objects instead of building raw DataElements yourself.
+
+A passport has a header plus any of these 19 **aspects**:
+
+| Topic | Aspects |
+| --- | --- |
+| Identity and origin | `Nameplate`, `Traceability`, `ProductRelationship` |
+| Environment and health | `EnvironmentalImpact`, `CarbonFootprint`, `BillOfMaterials`, `HealthImpact` |
+| Circularity | `Durability`, `Reliability`, `Repairability`, `Refurbishment`, `Remanufacturing`, `Reusability`, `Recyclability`, `Upgradability`, `WasteManagement` |
+| Use and rights | `Usage`, `Safety`, `RightOfEndUsers` |
+
+It can also have one **product type** with its own fields: `ChairCharacteristics`,
+`CribCharacteristics`, `FabricCharacteristics`, `LockerCharacteristics`,
+`ParticleBoardCharacteristics`, or `SofaCharacteristics`.
+
+Reusable **building blocks** go inside the aspects, for example `Material`, `Component`, `Part`,
+`Certificate`, `Instruction`, `Contact`, and records such as `ManufacturingRecord` or `RepairRecord`.
+
+What you can do with it:
+
+- **Create and edit** passports with typed fields. Edits return a new copy (`with_field()`).
+- **Use units safely:** `Dpp4FunQuantity` pairs a number with a `LengthUnit`, `MassUnit`, or
+  `VolumeUnit`. Values with the wrong kind of unit are rejected.
+- **Validate** against the D4.1 rules with `validate_dpp4fun()`. You get a list of issues, each
+  with the path of the field it concerns.
+- **Convert** to and from FULL and COMPRESSED JSON with `Dpp4FunJsonCodec`. The built-in profile
+  describes all 488 fields, so COMPRESSED JSON can be expanded again.
+- **Keep extra data:** fields that are not part of the profile are kept, not dropped.
+
+Field names are the camelCase IDs used in JSON (`manufacturerName=`, not `manufacturer_name=`).
+The [field reference](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/dpp4fun-fields.md)
+lists all of them per aspect, and the [model guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/model-guide.md)
+shows how to build, read, edit, and validate passports.
+
+## Handle errors
+
+Validation never raises; it returns a report (`report.is_valid`, `report.issues`). Everything else
+raises a specific exception:
+
+| Exception | Raised when |
+| --- | --- |
+| `DppNetworkClientError` | The service cannot be reached, or the request times out. |
+| `DppApiClientError` | The service answers with an API error, for example `ClientErrorResourceNotFound`. Has the HTTP status and the service messages. |
+| `DppHttpClientError` | The service answers with an HTTP error that is not an API error envelope. |
+| `DppMappingClientError` | A request cannot be serialized, or a response is not a valid envelope. |
+| `DppMappingError` | Passport JSON cannot be read or written (bad JSON, wrong structure, missing header fields). |
+| `DppValidationError` | Only from `from_json_and_validate()`: the JSON was read, but the passport is not valid. |
+
+The client exceptions are in `dpp_sdk.clients`; the model exceptions are in `dpp_sdk`.
+
+```python
+from dpp_sdk.clients import DppApiClientError, DppNetworkClientError
+
+try:
+    with DppRepoClient(REPO_URL) as repository:
+        repository.read_dpp_by_id(passport_id)
+except DppApiClientError as error:
+    print("Service returned an error:", error)
+except DppNetworkClientError:
+    print("Service not reachable")
+```
+
+## Documentation
+
+| If you want to… | Read |
+| --- | --- |
+| build, read, edit, validate, and convert passports | [Model guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/model-guide.md) |
+| find the field names of a DPP4Fun aspect | [DPP4Fun field reference](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/dpp4fun-fields.md) |
+| see every client method and error | [HTTP clients guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/clients-guide.md) |
+| build passports for another product group | [Building your own profile](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/extending.md) |
+| trace behavior to EN 18222/18223/18219 or D4.1 | [Standards alignment and validation rules](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/conformance.md) |
+| run the guided demo with test scenarios | [Mock-services demo](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/examples/mock-services-demo/README.md) |
+| see what changed, or upgrade from an older version | [Changelog](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/CHANGELOG.md) |
+| contribute, run the tests, or work on this repository | [Contributing guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/CONTRIBUTING.md) |
+
+## Terms used here
+
+- **DPP (Digital Product Passport):** a structured record about one product, model, or batch.
+- **Repository:** a service that stores passports.
+- **Registry:** a service that records where a passport is stored, so it can be found.
+- **FULL / COMPRESSED:** two JSON forms of a passport. FULL includes type information for every
+  field; COMPRESSED is shorter and contains only the values.
+- **DataElement:** one field or group of fields inside a passport.
+- **DPP4Fun:** a furniture passport profile, defined in the project document D4.1.
+- **AAS (Asset Administration Shell):** the template format in which the DPP4Fun fields are published.
+
+## Standards and limitations
+
+The SDK follows selected parts of these standards. This is not a claim of full conformance,
+certification, or legal compliance.
+
+- **EN 18222:2026** (repository and registry API): Clauses 4.2–4.8, 5.2, 6.2–6.3, 7.2, 8.1–8.4.
+- **EN 18223:2026** (passport model and JSON): Clauses 4.1.2.1–4.1.2.9 and 5.2.2–5.2.9.
+- **EN 18219:2026** (identifiers): local syntax checks for GS1 Digital Link, GS1 GLN, and
+  Identification Link only. The SDK does not issue, resolve, or prove uniqueness of identifiers.
+- **DPP4Fun D4.1 v1.0**, Sections 3.2.1–3.2.2. Where D4.1 contradicts itself, the
+  [standards page](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/docs/conformance.md#source-alignment-and-source-conflicts)
+  explains which choice the SDK makes.
+
+Not included:
+
+- No authentication, retries, caching, or automatic pagination (you pass `cursor` yourself).
+- No complete JSON Merge Patch (RFC 7396) or JSONPath (RFC 9535) implementation. The client sends
+  your update as-is, and the service decides how to apply it.
+- No registry delete or read-back, no backup-operator support, and no lifecycle-event history.
+- COMPRESSED JSON is the JSON API shape used by the Java services, not the XML form in
+  EN 18223 Annex B.
+- No connection to a real EU registry, and no production hardening.
+
+## Versioning
+
+`dpp-sdk` is in the 0.x phase: a new minor version may contain breaking changes. Every
+breaking change is listed in the [changelog](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/CHANGELOG.md) with migration notes. The public API
+is what `dpp_sdk`, `dpp_sdk.core`, `dpp_sdk.dpp4fun`, and `dpp_sdk.clients` export; modules and
+names starting with `_` are internal.
+
+## Contributing and license
+
+To work on the SDK itself, see the [contributing guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/CONTRIBUTING.md). The release steps are
+in the [release guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/RELEASING.md). The license is in
+[LICENSE](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/LICENSE).

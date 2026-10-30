@@ -4,7 +4,105 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - Synchronisation with java-dpp-sdk
+## [0.5.0] - 2026-10-30
+
+
+### Added
+- A canonical `DigitalProductPassport` model with a `DppHeader` and typed DataElement variants,
+  plus FULL and COMPRESSED JSON codecs and explicit semantic, format, and identifier validation.
+- A typed DPP4Fun profile over the core passport, including its bundled 488-definition semantic catalog,
+  typed aspects and Characteristics variants, reusable composites, profile validation, and transport codec.
+- Generic JSON repository and registry clients that accept JSON-compatible request values and return
+  response envelopes without owning domain codecs or validation.
+
+### Changed
+- The core model and furniture profile now use the final passport structure and current profile
+  semantics; the earlier `Dpp`/`DppCore` and flat furniture model shapes are no longer accepted as
+  current model APIs.
+- Client methods return neutral response DTOs. Repository payloads are exposed through
+  `DppApiResponse.payload`; clients do not parse them into caller-selected model types.
+- Public model and client attributes use Python `snake_case` while JSON aliases retain the API's
+  canonical field names.
+- Repository and registry clients require explicit service base URLs. Callers own model parsing,
+  serialization, and validation.
+
+### Fixed
+- Reject malformed HTTP base URLs before sending a request, and require `messageType` and `text`
+  for each API message while allowing the outer `message` list to be absent or empty.
+- Preserve numeric DataElement equality and hashing across nested integer, float, and Decimal values.
+- Apply the approved DPP4Fun profile bindings, unit handling, and semantic-resolution behavior.
+
+### Documentation
+- Added a generated DPP4Fun field reference, a guide for building your own profile on Core, a
+  standards and validation-rules page, and a contributing guide.
+- Reorganized the model guide around tasks (build, read, edit, validate, convert) and documented
+  the read API (`typed_aspect()`, `field()`, `quantity()`, `selected_characteristics()`).
+- The README quickstart now reads the passport back as a typed object and lists the exceptions.
+
+### Breaking changes and migration
+
+The released `v0.4.0` repository client accepted a model codec and validator and returned typed model
+objects. The `0.5.0` client takes only a service URL (and optionally a caller-supplied HTTPX client),
+accepts JSON-compatible values, and returns response envelopes. Move validation and codec work to the
+application boundary:
+
+```python
+# v0.4.0
+repo = DppRepoClient(base_url, codec, validate_dpp4fun)
+created = repo.create_dpp(passport)
+loaded = repo.read_dpp_by_id(created.dppId)
+
+# 0.5.0
+import json
+from dpp_sdk import Dpp4FunJsonCodec, validate_dpp4fun
+from dpp_sdk.clients import DppRepresentation, DppRepoClient
+
+codec = Dpp4FunJsonCodec()
+validation = validate_dpp4fun(passport)
+if not validation.is_valid:
+    raise ValueError(validation.issues)
+with DppRepoClient(base_url) as repo:
+    created = repo.create_dpp(json.loads(codec.to_json(passport)))
+    if created.digital_product_passport_id is None:
+        raise RuntimeError("repository did not return a passport ID")
+    response = repo.read_dpp_by_id(
+        created.digital_product_passport_id,
+        DppRepresentation.FULL,
+    )
+    loaded = codec.from_json(json.dumps(response.payload))
+```
+
+`DppApiResponse` carries `status_code`, `payload`, and `message`. API failures raise
+`DppApiClientError`; malformed JSON or payload mapping raises `DppMappingClientError`; unstructured
+HTTP failures and transport failures use `DppHttpClientError` and `DppNetworkClientError`. Semantic
+validation is performed explicitly before a request with the relevant core or DPP4Fun validator.
+
+The former `Dpp`/`DppCore` model family and flat furniture classes were replaced by
+`DigitalProductPassport`, `DppHeader`, five DataElement variants, and a DPP4Fun aggregate over the
+canonical passport. Python object attributes also changed from camelCase to `snake_case`; for
+example, `dpp.passportMetadata.uniqueProductIdentifier` is now
+`passport.dpp_header.unique_product_identifier`, while the JSON key remains
+`uniqueProductIdentifier`. Map stored legacy fields to the current model explicitly; no general
+legacy model converter is provided. Use `DppJsonCodec.to_expanded_json()` or
+`DppJsonCodec.to_compressed_json()` for core transport, and `Dpp4FunJsonCodec` for typed profile
+views. FULL responses can be decoded with the codec; COMPRESSED responses may need prior metadata or
+semantic resolution to restore typed details.
+
+The `for_local_mock()` factories, default endpoint helpers/constants, `health_check()`, typed
+`read_compressed_dpp_by_id()`, product-ID historical-read helper, the `dpp_sdk.clients.DppCodec`
+and `dpp_sdk.clients.DppValidator` typing protocols, `DppValidationClientError`, and the
+`UpdateDataElementRequest` compatibility DTO are not part of the current client API. (The model
+validator `dpp_sdk.core.DppValidator` is unaffected.) Pass local service URLs directly, check service health independently, use
+`read_dpp_version_by_id_and_date()` for supported history reads, and pass direct JSON-compatible
+DataElement bodies to fine-grained update methods.
+
+### Compatibility
+- The generic JSON client API is a breaking change from the released typed-client API; see the
+  migration examples above.
+- The legacy product-ID history route and legacy registry request aliases are not part of the
+  current public Python client surface.
+
+## [0.4.0] - 2026-08-11
 
 ### Added
 - An isolated `examples/mock-services-demo` consumer project with reproducible Mock image
@@ -46,8 +144,6 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
   boundary, while direct defensive validators retain indexed semantic errors.
 
 ### Changed
-- Active model guidance and contract tests consistently use `with_updates()` as the
-  revalidating immutable-edit seam; intentional Pydantic bypass probes remain internal.
 - `README.md`: full lifecycle Quickstart (build → validate → store → register → read → update →
   delete) now uses application-provided endpoints and no-network examples.
 - Domain models expose `with_updates()` for revalidated immutable updates; contracted collections
@@ -71,9 +167,8 @@ All notable changes to `dpp-sdk` are documented here. The format is based on
 
 ## [0.2.1] — Previous package baseline
 
-- Package metadata and `dpp_sdk.__version__` identified the preceding checkout as `0.2.1`.
-- This repository checkout contains no local release tag for `0.2.1`; commit history remains
-  the provenance source for changes predating the current unreleased section.
+- Package metadata and `dpp_sdk.__version__` identified version `0.2.1`.
+- Commit history remains the provenance source for changes predating the `0.2.1` baseline.
 
 ## [0.1.1]
 
@@ -90,7 +185,9 @@ First public release of the Python port of the Mock DPP SDK.
 - `dpp_sdk.clients` — `httpx`-based HTTP clients for the DPP repository and registry APIs.
 - Packaging: PEP 621 `pyproject.toml`, `src/` layout, `py.typed` marker, sdist + wheel build.
 
-[Unreleased]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/CIR4FUN-EU/dpp-sdk-python/releases/tag/v0.4.0
-[0.1.1]: https://github.com/CIR4FUN-EU/dpp-sdk-python/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/CIR4FUN-EU/dpp-sdk-python/releases/tag/v0.1.0
+[Unreleased]: https://github.com/CIR4FUN-EU/python-dpp-sdk/compare/v0.5.0...main
+[0.5.0]: https://github.com/CIR4FUN-EU/python-dpp-sdk/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/CIR4FUN-EU/python-dpp-sdk/compare/v0.2.1...v0.4.0
+[0.2.1]: https://github.com/CIR4FUN-EU/python-dpp-sdk/compare/v0.1.1...v0.2.1
+[0.1.1]: https://github.com/CIR4FUN-EU/python-dpp-sdk/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/CIR4FUN-EU/python-dpp-sdk/releases/tag/v0.1.0

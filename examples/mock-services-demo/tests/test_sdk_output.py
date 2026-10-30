@@ -26,8 +26,8 @@ def test_sdk_text_summary_is_compact_and_keeps_statuses() -> None:
 
     text = render_text(report, summary=True)
 
-    assert "SDK-01 | Complete model construction" in text
-    assert "SDK-07 | Valid immutable updates" in text
+    assert "SDK-01 | Typed DPP4Fun validation" in text
+    assert "SDK-07 | Unknown extension preservation" in text
     assert "Purpose\n" not in text
     assert "expected_error=0" in text
 
@@ -36,7 +36,7 @@ def test_sdk_detailed_text_keeps_an_unexpected_failure_visible() -> None:
     base = _report("sdk")
     failure = ScenarioResult(
         scenario_id="SDK-01",
-        name="Complete model construction",
+        name="Typed DPP4Fun validation",
         category="SDK_LOCAL",
         status=ScenarioStatus.FAILED,
         duration_seconds=0.0,
@@ -53,7 +53,7 @@ def test_sdk_detailed_text_keeps_an_unexpected_failure_visible() -> None:
 
     text = render_text(report)
 
-    assert "[SDK-01] Complete model construction" in text
+    assert "[SDK-01] Typed DPP4Fun validation" in text
     assert "Status: FAILED" in text
     assert "RuntimeError: controlled failure" in text
 

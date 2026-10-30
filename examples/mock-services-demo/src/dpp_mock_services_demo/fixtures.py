@@ -1,36 +1,76 @@
-"""Deterministic demo fixtures with unique identities for every run."""
+"""Deterministic typed DPP4Fun demo fixtures with run-scoped identifiers."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from dpp_sdk import (
-    Address,
+from dpp_sdk import Dpp4Fun, DppHeader, Granularity
+from dpp_sdk.core import DataElementCollection, SingleValuedDataElement
+from dpp_sdk.dpp4fun import (
+    Accessory,
     BillOfMaterials,
-    Characteristics,
-    Component,
-    Contact,
-    Dimensions,
-    Documentation,
-    Dpp4Fun,
-    DppCore,
-    Email,
+    CarbonFootprint,
+    CarbonFootprintCalculation,
+    Certificate,
+    ChairCharacteristics,
+    DesignRecord,
+    Dpp4FunQuantity,
+    Durability,
+    EnvironmentalImpact,
+    HealthImpact,
+    HealthIndicator,
+    Instruction,
+    LengthUnit,
     Material,
     Nameplate,
-    Organization,
-    OrganizationRole,
-    Part,
-    PassportMetadata,
-    ProductClassification,
-    Telephone,
+    PostSaleService,
+    ProductRelationship,
+    Recyclability,
+    Refurbishment,
+    Reliability,
+    Remanufacturing,
+    Repairability,
+    RepairRecord,
+    Reusability,
+    RightOfEndUsers,
+    Safety,
+    StandardAssessment,
+    Traceability,
+    Upgradability,
+    Usage,
+    WasteManagement,
+    profile_definition,
 )
+
+
+def _profile_collection(path: str, **values: object) -> DataElementCollection:
+    """Create a profile-backed composite for a source family without a named Python type."""
+    definition = profile_definition(path)
+    children = tuple(
+        SingleValuedDataElement(
+            element_id=field.element_id,
+            dictionary_reference=field.dictionary_reference,
+            value_data_type=field.value_data_type,
+            value=value,
+        )
+        for name, value in values.items()
+        if (field := profile_definition(f"{path}.{name}")).object_type == "SingleValuedDataElement"
+    )
+    if len(children) != len(values):
+        raise ValueError(f"{path} accepts only the supplied scalar profile fields")
+    return DataElementCollection(
+        element_id=definition.element_id,
+        object_type="DataElementCollection",
+        dictionary_reference=definition.dictionary_reference,
+        elements=children,
+    )
 
 
 @dataclass(frozen=True)
 class DemoIdentity:
-    """Run-scoped identifiers used by SDK and future live scenarios."""
+    """Run-scoped identifiers used by SDK and live scenarios."""
 
     run_id: UUID
     dpp_id: UUID
@@ -54,111 +94,173 @@ def new_demo_identity() -> DemoIdentity:
     return DemoIdentity.from_run_id(uuid4())
 
 
-def _manufacturer(*, complete: bool) -> Organization:
-    if not complete:
-        return Organization(name="CIR4FUN Demo Manufacturer", role=OrganizationRole.MANUFACTURER)
-    return Organization(
-        name="CIR4FUN Demo Manufacturer",
-        gln="4012345000009",
-        productDescription="Deterministic Mock-services demo fixture",
-        productDesignation="Demo Office Chair",
-        productFamily="Furniture",
-        productRoot="Chair",
-        productOrderSuffix="DEMO",
-        uri="https://example.invalid/manufacturers/cir4fun-demo",
-        role=OrganizationRole.MANUFACTURER,
-        contact=Contact(
-            organization="CIR4FUN Demo Support",
-            address=Address(
-                country="DE",
-                zipCode="10115",
-                region="Berlin",
-                town="Berlin",
-                street="Example Street 1",
-            ),
-            email=Email(emailAddress="support@example.invalid", typeOfEmail="business"),
-            telephone=Telephone(telephoneNumber="+49-30-5550000", typeOfTelephone="business"),
-        ),
+def _header(identity: DemoIdentity) -> DppHeader:
+    return DppHeader(
+        digital_product_passport_id=str(identity.dpp_id),
+        unique_product_identifier=identity.product_id,
+        granularity=Granularity.MODEL,
+        dpp_schema_version="1.0",
+        dpp_status="active",
+        last_updated=datetime(2026, 1, 1, tzinfo=UTC),
+        economic_operator_id=f"operator-{identity.run_id.hex}",
     )
 
 
 def build_minimal_fixture(identity: DemoIdentity) -> Dpp4Fun:
-    """Build the smallest structurally and semantically valid furniture DPP."""
+    """Build the smallest current typed furniture passport for the demo."""
 
-    return Dpp4Fun(
-        coreDpp=DppCore(
-            passportMetadata=PassportMetadata(
-                uniqueProductIdentifier=identity.dpp_id,
-                passportUpdateDates=(date(2024, 1, 1),),
-            ),
-            nameplate=Nameplate(
-                gtinCode=identity.product_id,
-                manufacturer=_manufacturer(complete=False),
-            ),
-        ),
-        classification=ProductClassification(sector="Furniture", category="Office Chair"),
-        characteristics=Characteristics(
-            productName="CIR4FUN Demo Chair",
-            productType="Office Chair",
-        ),
+    return Dpp4Fun.create(
+        _header(identity),
+        Nameplate.create(manufacturerName="CIR4FUN Demo Manufacturer"),
+        ChairCharacteristics.create(color="blue", surface="Smooth"),
     )
 
 
 def build_complete_fixture(identity: DemoIdentity) -> Dpp4Fun:
-    """Build a deterministic fixture with every optional model group populated."""
+    """Build all 19 general aspects plus typed repeated, multilingual, unit, and record data."""
 
-    return Dpp4Fun(
-        coreDpp=DppCore(
-            passportMetadata=PassportMetadata(
-                uniqueProductIdentifier=identity.dpp_id,
-                passportUpdateDates=(date(2024, 1, 1), date(2024, 6, 1)),
-                qrCodeOrDigitalTag=identity.registry_sensitive_id,
-                externalDocumentationLink="https://example.invalid/dpp/demo-chair",
+    materials = (
+        Material.create(name="Steel", portion=0.6, mandatory=True),
+        Material.create(name="Foam", portion=0.4),
+    )
+    characteristic = ChairCharacteristics.create(
+        color="blue",
+        surface="Woven matte",
+        seatingCapacity=1,
+        swivel=True,
+    ).with_quantity("height", Dpp4FunQuantity(value=0.82, unit=LengthUnit.METER))
+    return Dpp4Fun.create(
+        _header(identity),
+        Nameplate.create(
+            gtinCode=identity.product_id,
+            manufacturerName="CIR4FUN Demo Manufacturer",
+            manufacturerProductDesignation={
+                "en-US": "Demo Office Chair",
+                "de-DE": "Demo-Bürostuhl",
+            },
+        ),
+        BillOfMaterials.create(materialSet=tuple(item.element for item in materials)),
+        CarbonFootprint.create(
+            carbonFootprintCalculationSet=(
+                CarbonFootprintCalculation.create(co2eq=18.5, phase="cradle-to-gate").element,
+            )
+        ),
+        Durability.create(
+            cycleLife="10,000 cycles",
+            standardSet=(
+                StandardAssessment.create(
+                    name="CIR4FUN durability assessment",
+                    description="Repeat cycle assessment for the demo chair.",
+                    complianceStatus="compliant",
+                ).element,
             ),
-            nameplate=Nameplate(
-                gtinCode=identity.product_id,
-                internalArticleNumber="C4F-DEMO-CHAIR",
-                batchNumber="DEMO-BATCH-2024",
-                customsTariffNumber="94013000",
-                uriOfTheProduct="https://example.invalid/products/demo-chair",
-                manufacturer=_manufacturer(complete=True),
-                supplier=Organization(
-                    name="CIR4FUN Demo Supplier",
-                    gln="4012345000016",
-                    role=OrganizationRole.SUPPLIER,
+        ),
+        EnvironmentalImpact.create(
+            indicatorSet=(
+                _profile_collection(
+                    "environmentalImpact.indicatorSet[*]",
+                    name="Climate impact",
+                    description="Demonstration environmental indicator.",
+                    value="18.5",
+                    unit="kg CO2e",
                 ),
+            )
+        ),
+        HealthImpact.create(
+            indicatorSet=(
+                HealthIndicator.create(
+                    name="Indoor emissions",
+                    description="Demonstration health indicator.",
+                    value="low",
+                    unit="mg/m3",
+                ).element,
+            )
+        ),
+        ProductRelationship.create(
+            accessorySet=(
+                Accessory.create(
+                    name="Replacement cushion",
+                    description="Optional replacement cushion.",
+                    reference="https://example.test/accessories/cushion",
+                ).element,
+            )
+        ),
+        Recyclability.create(recycledContent=0.35, recyclable=True),
+        Refurbishment.create(
+            refurbishmentInstructionSet=(
+                _profile_collection(
+                    "refurbishment.refurbishmentInstructionSet[*]",
+                    name="Refinish the frame",
+                    description="Clean and refinish the chair frame.",
+                    reference="https://example.test/instructions/refinish",
+                ),
+            )
+        ),
+        Reliability.create(
+            certificateSet=(
+                Certificate.create(
+                    name="CIR4FUN reliability assessment",
+                    description="Demonstration reliability evidence.",
+                    reference="https://example.test/certificates/reliability",
+                ).element,
+            )
+        ),
+        Remanufacturing.create(
+            assemblyInstructionSet=(
+                _profile_collection(
+                    "remanufacturing.assemblyInstructionSet[*]",
+                    name="Reassemble the frame",
+                    description="Reassemble the refurbished chair frame.",
+                    targetAudience="professional",
+                    reference="https://example.test/instructions/reassemble",
+                ),
+            )
+        ),
+        Repairability.create(
+            sparePartsAvailable=True,
+            repairRecordSet=(
+                RepairRecord.create(
+                    name="Demo repair record",
+                    description="A completed example repair.",
+                    operator=f"operator-{identity.run_id.hex}",
+                    time="2026-01-01T00:00:00Z",
+                ).element,
             ),
-            documentation=Documentation(
-                digitalInstructionsLink="https://example.invalid/docs/demo-chair",
-                safetyInstructionsLink="https://example.invalid/docs/demo-chair-safety",
-                downloadable=True,
-                availableForYears=10,
-                paperCopyAvailableOnRequest=True,
+        ),
+        Reusability.create(secondHand=True),
+        RightOfEndUsers.create(
+            postSaleServiceSet=(
+                PostSaleService.create(
+                    name="Product support",
+                    description="Contact the operator for product support.",
+                    reference="https://example.test/support",
+                ).element,
+            )
+        ),
+        Safety.create(ageRestriction="adult", professionalUseOnly=False),
+        Traceability.create(
+            currentPhase="final-assembly",
+            designRecordSet=(
+                DesignRecord.create(
+                    name="Chair design record",
+                    description="Approved chair design record.",
+                    operator=f"operator-{identity.run_id.hex}",
+                    time="2026-01-01T00:00:00Z",
+                    status="approved",
+                ).element,
             ),
         ),
-        classification=ProductClassification(
-            sector="Furniture",
-            group="Seating",
-            category="Office Chair",
-            subCategory="Ergonomic Office Chair",
-            tags=("ergonomic", "adjustable"),
-        ),
-        characteristics=Characteristics(
-            productName="CIR4FUN Demo Chair",
-            description="Deterministic complete SDK demonstration fixture",
-            brand="CIR4FUN",
-            productType="Office Chair",
-            dimensions=Dimensions(width=60.0, height=120.0, depth=60.0, unit="cm"),
-            weight=14.5,
-            color="blue",
-            features=("lumbar-support", "height-adjustable"),
-        ),
-        billOfMaterials=BillOfMaterials(
-            materials=(
-                Material(name="Steel", mandatory=True, portion=0.6, reference="MAT-STEEL"),
-                Material(name="Foam", portion=0.4, reference="MAT-FOAM"),
+        Upgradability.create(upgradeOptionsAvailable=True),
+        Usage.create(
+            operatingHours=2000,
+            assemblyInstructionSet=(
+                Instruction.create(
+                    name="Assemble the chair",
+                    description="Attach the seat and backrest to the frame.",
+                    reference="https://example.test/instructions/assembly",
+                ).element,
             ),
-            components=(Component(name="Seat assembly", reference="COMP-SEAT"),),
-            parts=(Part(name="Fastener set", mandatory=True, reference="PART-FASTENER"),),
         ),
+        WasteManagement.create(toxicityRisk=False),
+        characteristic,
     )

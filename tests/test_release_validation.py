@@ -50,6 +50,8 @@ def test_archive_member_policy_rejects_local_environment_and_internal_paths() ->
 
     allowed = (
         f"dpp_sdk-{_current_package_version()}/README.md",
+        f"dpp_sdk-{_current_package_version()}/docs/model-guide.md",
+        f"dpp_sdk-{_current_package_version()}/docs/clients-guide.md",
         f"dpp_sdk-{_current_package_version()}/LICENSE",
         f"dpp_sdk-{_current_package_version()}/src/dpp_sdk/py.typed",
         f"dpp_sdk-{_current_package_version()}/tests/test_clients.py",
@@ -71,12 +73,16 @@ def test_root_sdist_excludes_local_environment_and_generated_output(tmp_path: Pa
     archive = next(output.glob("dpp_sdk-*.tar.gz"))
     checks = _release_checks()
     with tarfile.open(archive) as source_distribution:
+        names = {member.name for member in source_distribution.getmembers()}
         forbidden = [
             member.name
             for member in source_distribution.getmembers()
             if checks.is_forbidden_archive_member(member.name)
         ]
     assert forbidden == []
+    root = f"dpp_sdk-{_current_package_version()}/docs/"
+    assert root + "model-guide.md" in names
+    assert root + "clients-guide.md" in names
 
 
 def _build_sdist(checkout: Path, output: Path) -> Path:
@@ -98,10 +104,28 @@ def _archive_member_names(archive: Path) -> list[str]:
 
 def test_root_sdist_excludes_fake_environment_from_copied_checkout(tmp_path: Path) -> None:
     checkout = tmp_path / "checkout"
+
+    def ignore_workspace_site(directory: str, names: list[str]) -> set[str]:
+        return set(
+            shutil.ignore_patterns(
+                ".git",
+                ".codex",
+                ".venv",
+                "*-venv",
+                "__pycache__",
+                ".pytest_cache",
+                ".mypy_cache",
+                ".ruff_cache",
+                "build",
+                "dist",
+                "artifacts",
+            )(directory, names)
+        )
+
     shutil.copytree(
         ROOT,
         checkout,
-        ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__", ".pytest_cache"),
+        ignore=ignore_workspace_site,
     )
     environment = checkout / "src" / "dpp_sdk" / "archive-test-venv"
     metadata = environment / "Lib" / "site-packages" / "foreign_package-1.0.dist-info" / "METADATA"
@@ -159,9 +183,11 @@ def test_package_version_cli_reports_the_current_package_version(
     assert capsys.readouterr().out.strip() == _current_package_version()
 
 
-def test_0_4_0_release_surface_keeps_exact_sdk_consumers_in_sync() -> None:
+def test_0_5_0_release_surface_keeps_exact_sdk_consumers_in_sync() -> None:
+    package_version = _current_package_version()
     package = (ROOT / "src" / "dpp_sdk" / "__init__.py").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
     demo_pyproject = (ROOT / "examples" / "mock-services-demo" / "pyproject.toml").read_text(
         encoding="utf-8"
@@ -171,16 +197,31 @@ def test_0_4_0_release_surface_keeps_exact_sdk_consumers_in_sync() -> None:
     )
     workflow = MOCK_SERVICES_WORKFLOW.read_text(encoding="utf-8")
 
-    assert '__version__ = "0.4.0"' in package
+    assert package_version == "0.5.0"
+    assert f'__version__ = "{package_version}"' in package
+    assert "## [Unreleased]" in changelog
     assert "## [0.4.0]" in changelog
-    assert "dpp-sdk==0.4.0" in root_readme
-    assert "dpp-sdk~=0.4.0" in root_readme
-    assert 'dependencies = ["dpp-sdk==0.4.0", "httpx>=0.27"]' in demo_pyproject
+    assert "## [0.5.0]" in changelog
+    assert "Breaking changes and migration" in changelog
+    assert "DppRepoClient(base_url, codec, validate_dpp4fun)" in changelog
+    assert "if not validation.is_valid" in changelog
+    assert "passport.dpp_header.unique_product_identifier" in changelog
+    assert "pip install dpp-sdk" in root_readme
+    assert package_version not in root_readme
+    assert "release candidate" not in root_readme.lower()
+    assert "PyPI currently lists" not in root_readme
+    assert "unpublished" not in changelog.lower()
+    assert "release candidate" not in changelog.lower()
+    assert f'dependencies = ["dpp-sdk=={package_version}", "httpx>=0.27"]' in demo_pyproject
     assert "dpp-sdk==0.4.0" not in demo_readme
-    assert "dpp_sdk-0.4.0-py3-none-any.whl" in workflow
+    assert "manifest unknown" not in demo_readme.lower()
+    assert "remains unverified" not in demo_readme.lower()
+    assert f"dpp_sdk-{package_version}-py3-none-any.whl" in workflow
     assert "default: 0.5.1" in workflow
     assert "          - 0.5.1" in workflow
     assert "env/0.5.1.env" in workflow
+    assert 'Homepage = "https://github.com/CIR4FUN-EU/python-dpp-sdk"' in project
+    assert 'Issues = "https://github.com/CIR4FUN-EU/python-dpp-sdk/issues"' in project
 
 
 def test_release_workflow_requires_all_quality_gates_before_publish() -> None:

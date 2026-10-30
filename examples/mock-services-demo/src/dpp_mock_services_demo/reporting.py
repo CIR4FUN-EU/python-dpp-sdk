@@ -76,10 +76,10 @@ class FullOperationEvidence:
 
 
 _FULL_PUBLIC_OPERATIONS = {
-    "REP-01": "DppRepoClient.health_check()",
-    "REP-02": "DppRepoClient.create_dpp(dpp)",
+    "REP-01": "HTTP GET /health",
+    "REP-02": "DppRepoClient.create_dpp(json_value)",
     "REP-03": "DppRepoClient.read_dpp_by_id(dpp_id)",
-    "REP-04": "DppRepoClient.read_compressed_dpp_by_id(dpp_id)",
+    "REP-04": "DppRepoClient.read_dpp_by_id(dpp_id, FULL)",
     "REP-05": "DppRepoClient.read_dpp_by_product_id(product_id)",
     "REP-06": "DppRepoClient.read_dpp_version_by_id_and_date(dpp_id, at)",
     "REP-07": "DppRepoClient.read_dpp_ids_by_product_ids(product_ids, limit, cursor)",
@@ -87,17 +87,15 @@ _FULL_PUBLIC_OPERATIONS = {
     "REP-09": "DppRepoClient.read_data_element(dpp_id, selector)",
     "REP-10": "DppRepoClient.update_data_element(dpp_id, selector, value)",
     "REP-11": "DppRepoClient.delete_dpp_by_id(dpp_id)",
-    "REP-12": "DppRepoClient.create_dpp(dpp)",
+    "REP-12": "DppRepoClient.create_dpp(json_value)",
     "REP-13": "DppRepoClient.read_dpp_by_id/read_dpp_by_product_id",
     "REP-14": "DppRepoClient.update_dpp_by_id(dpp_id, patch)",
     "REP-15": "DppRepoClient.read_data_element/update_data_element",
-    "REG-01": "DppRegistryClient.health_check()",
+    "REG-01": "HTTP GET /health",
     "REG-02": "DppRegistryClient.post_new_dpp_to_registry(request)",
     "REG-03": "DppRegistryClient.post_new_dpp_to_registry(request)",
     "REG-04": "DppRegistryClient.post_new_dpp_to_registry(request)",
-    "REG-05": "DppRegistryClient.post_new_dpp_to_registry(request)",
-    "REG-06": "DppRegistryClient.post_new_dpp_to_registry(request)",
-    "REG-07": "DppRegistryClient.post_new_dpp_to_registry(request)",
+    "REG-08": "DppRegistryClient.post_new_dpp_to_registry(request)",
 }
 
 

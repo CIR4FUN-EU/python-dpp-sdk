@@ -1,38 +1,72 @@
-"""Reusable core DPP model, validation, and identifiers.
-
-Reusable core DPP model, validation, and identifier contracts.
-"""
+"""Reusable core passport models, transport, and semantic validation."""
 
 from .errors import DppError, DppMappingError, DppValidationError
-from .model import (
-    Address,
-    Contact,
-    Documentation,
-    Dpp,
-    DppCore,
-    Email,
-    Nameplate,
-    Organization,
-    OrganizationRole,
-    PassportMetadata,
-    Telephone,
+from .json_codec import (
+    CompressedElementExpansionResult,
+    CompressedExpansionResult,
+    DppJsonCodec,
+    DppJsonException,
+    ExpansionIssue,
 )
-from .validation import validate_dpp_core
+from .model import (
+    DataElement,
+    DataElementCollection,
+    DigitalProductPassport,
+    DppHeader,
+    Granularity,
+    MultiLanguageDataElement,
+    MultiLanguageValue,
+    MultiValuedDataElement,
+    RelatedResource,
+    SingleValuedDataElement,
+)
+from .semantic import DataElementKind, SemanticDefinition, SemanticPath, SemanticResolver
+from .validation import (
+    DataFormatValidator,
+    DppValidator,
+    EconomicOperatorIdentifierMethod,
+    FacilityIdentifierMethod,
+    IdentifierValidationContext,
+    IdentifierValidator,
+    ProductIdentifierMethod,
+    ValidationIssue,
+    ValidationResult,
+    ValidationSeverity,
+    ValidationStatus,
+)
 
 __all__ = [
-    "Address",
-    "Contact",
-    "Documentation",
-    "Dpp",
-    "DppCore",
+    "CompressedElementExpansionResult",
+    "CompressedExpansionResult",
+    "DataElement",
+    "DataElementCollection",
+    "DataElementKind",
+    "DataFormatValidator",
+    "DigitalProductPassport",
     "DppError",
+    "DppHeader",
+    "DppJsonCodec",
+    "DppJsonException",
     "DppMappingError",
     "DppValidationError",
-    "Email",
-    "Nameplate",
-    "Organization",
-    "OrganizationRole",
-    "PassportMetadata",
-    "Telephone",
-    "validate_dpp_core",
+    "DppValidator",
+    "EconomicOperatorIdentifierMethod",
+    "ExpansionIssue",
+    "FacilityIdentifierMethod",
+    "Granularity",
+    "IdentifierValidationContext",
+    "IdentifierValidator",
+    "MultiLanguageDataElement",
+    "MultiLanguageValue",
+    "MultiValuedDataElement",
+    "ProductIdentifierMethod",
+    "RelatedResource",
+    "SemanticDefinition",
+    "SemanticPath",
+    "SemanticResolver",
+    "SingleValuedDataElement",
+    "ValidationIssue",
+    "ValidationResult",
+    "ValidationSeverity",
+    "ValidationStatus",
 ]

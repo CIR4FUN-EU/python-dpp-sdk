@@ -21,7 +21,7 @@ def test_complete_repository_and_registry_live_contract_matrix() -> None:
         f"REP-{index:02d}" for index in range(1, 16)
     )
     assert tuple(result.scenario_id for result in registry.results) == tuple(
-        f"REG-{index:02d}" for index in range(1, 8)
+        f"REG-{index:02d}" for index in range(1, 5)
     )
     assert all(result.status is ScenarioStatus.PASSED for result in repository.results)
     assert all(result.status is ScenarioStatus.PASSED for result in registry.results)

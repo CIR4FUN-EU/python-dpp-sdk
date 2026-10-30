@@ -1,166 +1,170 @@
-"""JSON transport: flat outbound, flat-or-nested inbound, and edge cases."""
+"""Canonical DPP4Fun transport contracts over the shared core codec."""
 
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
-from pydantic import ValidationError
 
-from dpp_sdk.core.errors import DppMappingError
-from dpp_sdk.dpp4fun.model import Dpp4Fun
-from dpp_sdk.dpp4fun.transport import from_json, from_json_and_validate, to_json
-
-_CORE_KEYS = {"passportMetadata", "nameplate", "documentation"}
-
-
-def test_outbound_is_flattened(valid_dpp4fun: Dpp4Fun) -> None:
-    data = json.loads(to_json(valid_dpp4fun))
-    assert "coreDpp" not in data
-    assert data.keys() >= _CORE_KEYS
-    assert {"classification", "characteristics", "billOfMaterials"} <= data.keys()
-
-
-def test_outbound_key_order_matches_java(valid_dpp4fun: Dpp4Fun) -> None:
-    keys = list(json.loads(to_json(valid_dpp4fun)).keys())
-    assert keys == [
-        "classification",
-        "characteristics",
-        "billOfMaterials",
-        "passportMetadata",
-        "nameplate",
-        "documentation",
-    ]
+from dpp_sdk.core import (
+    DataElementCollection,
+    DppHeader,
+    Granularity,
+    SingleValuedDataElement,
+)
+from dpp_sdk.core.json_codec import DppJsonException
+from dpp_sdk.dpp4fun import Dpp4Fun, Dpp4FunJsonCodec, Nameplate
+from dpp_sdk.dpp4fun.characteristics import (
+    ChairCharacteristics,
+    CribCharacteristics,
+    Dpp4FunProductVariant,
+    FabricCharacteristics,
+    LockerCharacteristics,
+    ParticleBoardCharacteristics,
+    SofaCharacteristics,
+)
+from dpp_sdk.dpp4fun.profile import DPP4FUN_PROFILE
+from dpp_sdk.dpp4fun.validation import Dpp4FunValidationService
 
 
-def test_round_trip_from_flat(valid_dpp4fun: Dpp4Fun) -> None:
-    assert from_json(to_json(valid_dpp4fun)) == valid_dpp4fun
-
-
-def test_round_trip_from_nested(valid_dpp4fun: Dpp4Fun) -> None:
-    nested = json.dumps(valid_dpp4fun.model_dump(mode="json"))
-    assert from_json(nested) == valid_dpp4fun
-
-
-def test_nested_takes_precedence_over_duplicate_flat_keys(valid_dpp4fun: Dpp4Fun) -> None:
-    nested = valid_dpp4fun.model_dump(mode="json")
-    # Add a stray flat key alongside coreDpp; normalize should drop it.
-    nested["nameplate"] = {"gtinCode": "SHOULD-BE-DROPPED"}
-    parsed = from_json(json.dumps(nested))
-    assert parsed.gtinCode == valid_dpp4fun.gtinCode
-
-
-def test_empty_lists_serialized_not_null(valid_dpp4fun: Dpp4Fun) -> None:
-    minimal = valid_dpp4fun.with_updates(
-        classification=valid_dpp4fun.classification.with_updates(tags=[])
+def _value() -> Dpp4Fun:
+    header = DppHeader(
+        digital_product_passport_id="urn:example:dpp:1",
+        unique_product_identifier="urn:example:product:1",
+        granularity=Granularity.MODEL,
+        dpp_schema_version="1.0",
+        dpp_status="active",
+        last_updated=datetime(2026, 1, 1, tzinfo=UTC),
+        economic_operator_id="urn:example:operator:1",
     )
-    data = json.loads(to_json(minimal))
-    assert data["classification"]["tags"] == []
-    assert data["characteristics"]["features"] == ["lumbar-support"]
+    return Dpp4Fun.create(header, Nameplate.create(manufacturerName="Example"))
 
 
-def test_from_json_and_validate(valid_dpp4fun: Dpp4Fun) -> None:
-    assert from_json_and_validate(to_json(valid_dpp4fun)) == valid_dpp4fun
-
-
-def test_codec_is_usable_as_dpp_codec(valid_dpp4fun: Dpp4Fun) -> None:
-    from dpp_sdk.dpp4fun.transport import Dpp4FunJsonCodec
-
+def test_full_and_compressed_round_trip() -> None:
     codec = Dpp4FunJsonCodec()
-    assert codec.from_json(codec.to_json(valid_dpp4fun)) == valid_dpp4fun
+    value = _value()
+    expanded = codec.to_expanded_json(value)
+    compressed = codec.to_compressed_json(value)
+    assert codec.from_expanded_json(expanded).passport == value.passport
+    assert codec.from_compressed_json(compressed).passport == value.passport
 
 
 @pytest.mark.parametrize(
-    "contract_id",
-    [pytest.param("CODEC-MALFORMED-JSON-001", id="CODEC-MALFORMED-JSON-001")],
-)
-def test_malformed_json_is_mapping_error_with_syntax_cause(contract_id: str) -> None:
-    with pytest.raises(DppMappingError) as exc:
-        from_json("{not-json")
-    assert isinstance(exc.value.__cause__, json.JSONDecodeError)
-
-
-@pytest.mark.parametrize(
-    "contract_id",
-    [pytest.param("MAPPING-DOMAIN-PAYLOAD-001", id="MAPPING-DOMAIN-PAYLOAD-001")],
-)
-def test_structurally_unmappable_json_is_mapping_error_with_pydantic_cause(
-    contract_id: str,
-) -> None:
-    with pytest.raises(DppMappingError) as exc:
-        from_json('{"classification": {}}')
-    assert isinstance(exc.value.__cause__, ValidationError)
-
-
-@pytest.mark.parametrize(
-    ("raw", "cause_type"),
+    ("variant", "aspect_type", "surface_text"),
     [
-        pytest.param("null", ValidationError, id="null"),
-        pytest.param("", json.JSONDecodeError, id="missing-root"),
-        pytest.param("{}", ValidationError, id="empty-object"),
+        (Dpp4FunProductVariant.CHAIR, ChairCharacteristics, "Smooth"),
+        (Dpp4FunProductVariant.CRIB, CribCharacteristics, "Smooth semi-matte"),
+        (Dpp4FunProductVariant.FABRIC, FabricCharacteristics, "Woven matte"),
+        (Dpp4FunProductVariant.LOCKER, LockerCharacteristics, "Impregnated decor paper"),
+        (
+            Dpp4FunProductVariant.PARTICLE_BOARD,
+            ParticleBoardCharacteristics,
+            "Small-structured chenille fabric",
+        ),
+        (
+            Dpp4FunProductVariant.SOFA,
+            SofaCharacteristics,
+            "Small-structured chenille fabric, micro-textured metal",
+        ),
     ],
 )
-def test_dec_004_standalone_invalid_roots_are_causal_mapping_failures(
-    raw: str,
-    cause_type: type[Exception],
+def test_published_surface_strings_round_trip_through_full_and_compressed(
+    variant, aspect_type, surface_text
 ) -> None:
-    with pytest.raises(DppMappingError) as exc:
-        from_json(raw)
-
-    assert isinstance(exc.value.__cause__, cause_type)
-
-
-@pytest.mark.parametrize(
-    ("field", "members", "path"),
-    [
-        pytest.param("features", [None, "valid"], "characteristics.features.0", id="null-first"),
-        pytest.param("tags", ["valid", None], "classification.tags.1", id="null-later"),
-    ],
-)
-def test_dec_001_null_string_list_member_is_causal_mapping_failure(
-    valid_dpp4fun: Dpp4Fun,
-    field: str,
-    members: list[str | None],
-    path: str,
-) -> None:
-    payload = json.loads(to_json(valid_dpp4fun))
-    owner = "characteristics" if field == "features" else "classification"
-    payload[owner][field] = members
-
-    with pytest.raises(DppMappingError) as exc:
-        from_json(json.dumps(payload))
-
-    assert isinstance(exc.value.__cause__, ValidationError)
-    assert path in str(exc.value.__cause__)
-
-
-@pytest.mark.parametrize("token", ["NaN", "Infinity", "-Infinity", "1e309"])
-def test_dec_003_non_finite_json_input_is_causal_mapping_failure(
-    valid_dpp4fun: Dpp4Fun,
-    token: str,
-) -> None:
-    payload = to_json(valid_dpp4fun).replace('"weight": 14.5', f'"weight": {token}')
-
-    with pytest.raises(DppMappingError) as exc:
-        from_json(payload)
-
-    assert exc.value.__cause__ is not None
-
-
-def test_dec_003_finite_exponent_json_is_accepted(valid_dpp4fun: Dpp4Fun) -> None:
-    payload = to_json(valid_dpp4fun).replace('"weight": 14.5', '"weight": 1.45e1')
-    assert from_json(payload).weight == 14.5
-
-
-def test_dec_003_non_finite_output_is_causal_mapping_failure(
-    valid_dpp4fun: Dpp4Fun,
-) -> None:
-    invalid_characteristics = valid_dpp4fun.characteristics.model_copy(
-        update={"weight": float("inf")}
+    header = DppHeader(
+        digital_product_passport_id=f"urn:example:passport:{variant.value}",
+        unique_product_identifier="urn:example:product:surface",
+        granularity="model",
+        dpp_schema_version="1.0",
+        dpp_status="active",
+        last_updated=datetime(2026, 1, 1, tzinfo=UTC),
+        economic_operator_id="urn:example:operator:surface",
+        content_specification_ids=(
+            "DPP4FUN_COMMON_V1",
+            DPP4FUN_PROFILE.variants[variant.value],
+        ),
     )
-    invalid = valid_dpp4fun.model_copy(update={"characteristics": invalid_characteristics})
+    aspect = aspect_type.create(surface=surface_text)
+    root_extension = SingleValuedDataElement(
+        element_id="vendorExtension", object_type="SingleValuedDataElement", value="keep"
+    )
+    source = Dpp4Fun.create(header, aspect, extensions=(root_extension,))
+    codec = Dpp4FunJsonCodec()
 
-    with pytest.raises(DppMappingError) as exc:
-        to_json(invalid)
+    expanded = codec.from_expanded_json(codec.to_expanded_json(source))
+    compressed = codec.from_compressed_json(codec.to_compressed_json(source))
+    for value in (expanded, compressed):
+        canonical = value.passport.data_elements[0].elements[0]
+        assert isinstance(canonical, SingleValuedDataElement)
+        assert canonical.value == surface_text
+        assert isinstance(canonical.value, str)
+        assert canonical.value_data_type == "xsd:string"
+        assert value.passport.data_elements[1] == root_extension
+        typed_root = value.passport.data_elements[0]
+        assert isinstance(typed_root, DataElementCollection)
+        typed = aspect_type.from_element(typed_root)
+        typed_surface = typed.field("surface")
+        assert isinstance(typed_surface, SingleValuedDataElement)
+        assert typed_surface.value == surface_text
+        assert not any(
+            issue.path.endswith("surface") and issue.rule == "DPP4FUN_BINDING_DATATYPE_MISMATCH"
+            for issue in Dpp4FunValidationService().validate(value).issues
+        )
+        full_wire = json.loads(codec.to_expanded_json(value))
+        full_surface = _find_full_value(full_wire, "surface")
+        assert full_surface == surface_text
+        assert _find_full_datatype(full_wire, "surface") == "xsd:string"
+        compressed_wire = json.loads(codec.to_compressed_json(value))
+        assert compressed_wire["characteristics"]["surface"] == surface_text
+    assert codec.from_expanded_json(codec.to_expanded_json(expanded)).passport == expanded.passport
+    assert (
+        codec.from_compressed_json(codec.to_compressed_json(compressed)).passport
+        == compressed.passport
+    )
+    assert source.passport.data_elements[0].elements[0].value == surface_text
 
-    assert isinstance(exc.value.__cause__, ValueError)
+
+def _find_full_value(node: object, element_id: str) -> object:
+    if isinstance(node, dict):
+        if node.get("elementId") == element_id:
+            return node.get("value")
+        for value in node.values():
+            found = _find_full_value(value, element_id)
+            if found is not None:
+                return found
+    if isinstance(node, list):
+        for value in node:
+            found = _find_full_value(value, element_id)
+            if found is not None:
+                return found
+    return None
+
+
+def _find_full_datatype(node: object, element_id: str) -> object:
+    if isinstance(node, dict):
+        if node.get("elementId") == element_id:
+            return node.get("valueDataType")
+        for value in node.values():
+            found = _find_full_datatype(value, element_id)
+            if found is not None:
+                return found
+    if isinstance(node, list):
+        for value in node:
+            found = _find_full_datatype(value, element_id)
+            if found is not None:
+                return found
+    return None
+
+
+def test_python_to_json_names_are_aliases_for_canonical_full_codec() -> None:
+    codec = Dpp4FunJsonCodec()
+    value = _value()
+    assert codec.to_json(value) == codec.to_expanded_json(value)
+    assert codec.from_json(codec.to_json(value)).passport == value.passport
+
+
+@pytest.mark.parametrize("json_text", ["{not-json", "null", "[]"])
+def test_malformed_or_non_object_full_payload_is_mapping_error(json_text: str) -> None:
+    with pytest.raises(DppJsonException):
+        Dpp4FunJsonCodec().from_json(json_text)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from uuid import UUID
 
+from dpp_sdk import __version__ as sdk_version
+
 from dpp_mock_services_demo.reporting import (
     DemoReport,
     InteroperabilityVerdict,
@@ -45,7 +47,7 @@ def _report(status: ScenarioStatus = ScenarioStatus.PASSED) -> DemoReport:
         ),
         summary="SDK capability demonstration completed",
         partial=False,
-        sdk_version="0.4.0",
+        sdk_version=sdk_version,
         sdk_location="/installed/site-packages/dpp_sdk/__init__.py",
         repo_image="repo@example",
         registry_image="registry@example",
@@ -73,7 +75,7 @@ def test_json_report_is_machine_readable_and_complete() -> None:
 
     assert payload["mode"] == "sdk"
     assert payload["run_id"] == "12345678-1234-5678-9234-567812345678"
-    assert payload["sdk_version"] == "0.4.0"
+    assert payload["sdk_version"] == sdk_version
     assert result["scenario_id"] == "SDK-01"
     assert result["summary"] == "Complete fixture passed"
     assert result["teaching"]["operation"]["public_api"] == "Dpp4Fun"

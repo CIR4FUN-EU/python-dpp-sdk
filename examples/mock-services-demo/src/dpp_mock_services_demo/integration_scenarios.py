@@ -1,31 +1,27 @@
-"""Annotated connected walkthrough using public SDK clients and mock-service HTTP APIs.
-
-The normal ``demo`` command selects the compact lifecycle in ``_PROFILE_STEP_IDS``:
-prepare a DPP, create/read/update it through the repository, register it, and
-remove the record it created. ``integration`` retains the longer educational
-path for compatibility and maintainer-oriented investigation.
-"""
+"""Connected example using typed models at the edge and generic JSON clients."""
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
 from time import perf_counter
-from typing import Any
+from typing import Any, Protocol
 
 import dpp_sdk
 from dpp_sdk import Dpp4FunJsonCodec, validate_dpp4fun
-from dpp_sdk.clients import DppHttpClientError, DppRegistryClient, DppRepoClient, RegisterDppRequest
+from dpp_sdk.clients import (
+    DppApiClientError,
+    DppApiResponse,
+    DppRegistryClient,
+    DppRepoClient,
+    DppRepresentation,
+    RegisterDppRequest,
+)
 
 from .config import DemoConfig
 from .fixtures import DemoIdentity, build_complete_fixture
 from .image_identity import RuntimeImageIdentity
-
-_INTEGRATION_STATUSES = frozenset({"PASS", "EXPECTED_ERROR", "BLOCKED", "SKIP", "FAIL"})
-_PROFILE_STEP_IDS = {
-    "demo": frozenset({1, 2, 3, 4, 5, 8, 12, 14}),
-    "integration": frozenset(range(1, 15)),
-}
+from .readiness import wait_for_health
 
 
 @dataclass(frozen=True)
@@ -48,6 +44,18 @@ class IntegrationStep:
 
 
 @dataclass(frozen=True)
+class IntegrationRunContext:
+    run_id: object
+    dpp_id: object
+    product_id: str
+    initial_dpp: object
+    repository_created: bool = False
+    repository_cleanup: str = "not_created"
+    post_delete_result: str = "not_attempted"
+    registration_id: str = ""
+
+
+@dataclass(frozen=True)
 class IntegrationReport:
     identity: DemoIdentity
     config: DemoConfig | None
@@ -59,621 +67,353 @@ class IntegrationReport:
     profile: str = "integration"
 
 
-@dataclass(frozen=True)
-class IntegrationRunContext:
-    """One generated lifecycle and the resources it owns."""
+class RepositoryClient(Protocol):
+    def create_dpp(self, dpp: object, representation: DppRepresentation = ...) -> object: ...
 
-    run_id: object
-    dpp_id: object
-    product_id: str
-    initial_dpp: object
-    updated_dpp: object | None = None
-    registration_id: str = ""
-    repository_created: bool = False
-    repository_cleanup: str = "not_created"
-    post_delete_result: str = "not_attempted"
-    registry_state: str = "not_attempted"
+    def read_dpp_by_id(
+        self, dpp_id: str, representation: DppRepresentation = ...
+    ) -> DppApiResponse: ...
+
+    def delete_dpp_by_id(self, dpp_id: str) -> object: ...
+
+    def close(self) -> None: ...
+
+
+class RegistryClient(Protocol):
+    def post_new_dpp_to_registry(self, request: RegisterDppRequest) -> object: ...
+
+    def close(self) -> None: ...
 
 
 def _step(
-    step_id: str,
+    index: int,
     stage: str,
     title: str,
     purpose: str,
     operation: str,
     service: dict[str, str],
+    action: Any,
     *,
-    input: dict[str, object] | None = None,
-    response: dict[str, object] | None = None,
-    proof: dict[str, object] | None = None,
-    explanation: str = "",
-    why: str = "",
-    status: str = "PASS",
+    input: dict[str, object],
     cleanup: str = "none",
-    duration: float = 0.0,
-) -> IntegrationStep:
-    if status not in _INTEGRATION_STATUSES:
-        raise ValueError(f"unsupported integration status: {status}")
-    if service:
-        service = {
-            **service,
-            "interaction": f"{service['http_method']} {service['route']}",
-        }
-    elif status == "BLOCKED":
-        service = {
-            "name": "not contacted",
-            "interaction": "No service request was attempted after the failed prerequisite.",
-        }
-    else:
-        service = {
-            "name": "local SDK",
-            "interaction": "No external service call; this step runs in the Python SDK process.",
-        }
-    if response is None:
-        if status == "BLOCKED":
-            response = {"result": "not attempted"}
-        else:
-            response = {"result": "not applicable"}
-    if proof is None:
-        proof = (
-            {"blocked_by": "an earlier failed prerequisite"}
-            if status == "BLOCKED"
-            else {"proof": "not applicable"}
-        )
-    return IntegrationStep(
-        step_id,
-        stage,
-        title,
-        status,
-        "SDK_LOCAL" if stage == "local" else "LIVE_MOCK_IMAGE",
-        purpose,
-        input or {"selected": "not applicable"},
-        {"public_api": operation, "display": operation},
-        service,
+) -> tuple[IntegrationStep, Any]:
+    started = perf_counter()
+    try:
+        response, proof = action()
+        status = "PASS"
+    except Exception as exc:  # noqa: BLE001 - preserve each operation failure in report
+        response = {"error": f"{type(exc).__name__}: {exc}"}
+        proof = {"proof": "operation failed"}
+        status = "FAIL"
+    interaction = f"{service['http_method']} {service['route']}" if service else "No HTTP request"
+    return (
+        IntegrationStep(
+            f"INT-{index:02d}",
+            stage,
+            title,
+            status,
+            "LIVE_MOCK_IMAGE" if service else "SDK_LOCAL",
+            purpose,
+            input,
+            {"public_api": operation, "display": operation},
+            {**service, "interaction": interaction},
+            response if isinstance(response, dict) else {"result": response},
+            proof if isinstance(proof, dict) else {"proof": proof},
+            "The report records the JSON exchanged with the selected public endpoint.",
+            "Applications can keep typed domain objects while clients remain JSON based.",
+            cleanup,
+            perf_counter() - started,
+        ),
         response,
-        proof,
-        explanation or "The displayed result was captured from this step.",
-        why or "It makes the live workflow explicit and repeatable.",
-        cleanup,
-        duration,
     )
 
 
-def _ready_response(ready: object, endpoint: str) -> tuple[dict[str, object], dict[str, object]]:
-    """Require a functional public health response before the connected flow proceeds."""
-
-    if ready is False:
-        raise RuntimeError(f"health_check returned False for {endpoint}")
-    if ready is not True:
-        raise RuntimeError(f"health_check must return True for {endpoint}, got {ready!r}")
-    return {"ready": True}, {"endpoint": endpoint}
+def _blocked_steps() -> tuple[IntegrationStep, ...]:
+    titles = (
+        ("Repository readiness", "GET", "/health"),
+        ("Registry readiness", "GET", "/health"),
+        ("Validate typed DPP", "", ""),
+        ("Create DPP", "POST", "/v1/dpps"),
+        ("Read DPP JSON", "GET", "/v1/dpps/{digitalProductPassportId}"),
+        ("Register DPP", "POST", "/v1/registerDPP"),
+        ("Demonstrate not found mapping", "GET", "/v1/dpps/{unknownId}"),
+        ("Delete created DPP", "DELETE", "/v1/dpps/{digitalProductPassportId}"),
+    )
+    return tuple(
+        IntegrationStep(
+            f"INT-{index:02d}",
+            "blocked",
+            title,
+            "BLOCKED",
+            "NOT_RUN",
+            "Select a service profile before running the connected flow.",
+            {"selected": "not available"},
+            {"public_api": "not invoked", "display": "not invoked"},
+            {"name": "not contacted", "interaction": "No service request was attempted."},
+            {"result": "not attempted"},
+            {"blocked_by": "missing service configuration"},
+            "No live configuration was supplied.",
+            "The demo does not guess service endpoints.",
+            "not_created",
+            0.0,
+        )
+        for index, (title, method, route) in enumerate(titles, 1)
+    )
 
 
 def run_integration_scenarios(
     identity: DemoIdentity,
     config: DemoConfig | None,
-    repository: Any = None,
-    registry: Any = None,
+    repository: RepositoryClient | None = None,
+    registry: RegistryClient | None = None,
     profile: str = "integration",
     image_identity: RuntimeImageIdentity | None = None,
     image_identity_error: str = "",
 ) -> IntegrationReport:
-    """Run one DPP lifecycle; tests may pass ``None`` config to inspect blocked shape.
-
-    The flow reports each completed operation as evidence instead of printing
-    directly. This lets the CLI render a readable walkthrough and lets tests
-    inspect the same structured result. Records are created with a generated
-    identity and deleted in ``finally`` so cleanup remains scoped to this run.
-    """
-    if profile not in _PROFILE_STEP_IDS:
+    """Run one disposable JSON API lifecycle and report cleanup explicitly."""
+    if profile not in {"demo", "integration"}:
         raise ValueError(f"unsupported integration profile: {profile}")
-    selected_steps = _PROFILE_STEP_IDS[profile]
     fixture = build_complete_fixture(identity)
-    context = IntegrationRunContext(
-        run_id=identity.run_id,
-        dpp_id=identity.dpp_id,
-        product_id=identity.product_id,
-        initial_dpp=fixture,
-    )
+    context = IntegrationRunContext(identity.run_id, identity.dpp_id, identity.product_id, fixture)
     if config is None:
-        steps = tuple(
-            _step(
-                f"INT-{i:02d}",
-                "environment",
-                "Configuration required",
-                "Use an explicit service profile.",
-                "DppRepoClient",
-                {},
-                status="BLOCKED",
-                explanation="No live profile was supplied.",
-                why="The demo never guesses an endpoint.",
-            )
-            for i in sorted(selected_steps)
-        )
         return IntegrationReport(
-            identity, None, steps, context, image_identity, image_identity_error, profile=profile
+            identity,
+            None,
+            _blocked_steps(),
+            context,
+            image_identity,
+            image_identity_error,
+            profile=profile,
         )
-    # Accept injected clients for tests, while normal CLI runs construct only
-    # public SDK clients from the selected service profile.
-    repo = repository or DppRepoClient(config.repo_base_url, Dpp4FunJsonCodec(), validate_dpp4fun)
-    reg = registry or DppRegistryClient(config.registry_base_url)
-    owned_repo, owned_reg, active, warnings = repository is None, registry is None, False, []
-    steps: list[IntegrationStep] = []
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
-    def run(
-        i: int,
-        stage: str,
-        title: str,
-        purpose: str,
-        operation: str,
-        service: dict[str, str],
-        action: Any,
-        **kwargs: Any,
-    ) -> Any:
-        start = perf_counter()
-        try:
-            response, proof = action()
-            steps.append(
-                _step(
-                    f"INT-{i:02d}",
-                    stage,
-                    title,
-                    purpose,
-                    operation,
-                    service,
-                    response=response,
-                    proof=proof,
-                    duration=perf_counter() - start,
-                    **kwargs,
-                )
-            )
-            return response
-        except Exception as exc:
-            steps.append(
-                _step(
-                    f"INT-{i:02d}",
-                    stage,
-                    title,
-                    purpose,
-                    operation,
-                    service,
-                    status="FAIL",
-                    response={"error": f"{type(exc).__name__}: {exc}"},
-                    duration=perf_counter() - start,
-                    **kwargs,
-                )
-            )
-            raise
+    repo_owned, registry_owned = repository is None, registry is None
+    repo = repository or DppRepoClient(config.repo_base_url)
+    reg = registry or DppRegistryClient(config.registry_base_url)
+    codec = Dpp4FunJsonCodec()
+    wire = json.loads(codec.to_json(fixture))
+    steps: list[IntegrationStep] = []
+    warnings: list[str] = []
+    active = False
+    context = replace(context)
 
     try:
-        # Each nested action returns response plus persistence proof; ``run``
-        # converts that into one consistently rendered teaching step.
-
-        def create() -> tuple[dict[str, object], dict[str, object]]:
-            nonlocal created_at, context
-            response = repo.create_dpp(fixture)
-            created_at = datetime.now(UTC)
-            context = replace(context, repository_created=True, repository_cleanup="created")
-            return {"dppId": str(response.dppId)}, {"submitted_dpp_id": str(identity.dpp_id)}
-
-        def full_update() -> tuple[dict[str, object], dict[str, object]]:
-            nonlocal context, updated_at
-            updated = repo.update_dpp_by_id(
-                str(identity.dpp_id), {"characteristics": {"productName": changed}}
-            )
-            context = replace(context, updated_dpp=updated)
-            updated_at = datetime.now(UTC)
-            return (
-                {"returned_productName": updated.productName},
-                {
-                    "read_back_productName": repo.read_dpp_by_id(str(identity.dpp_id)).productName,
-                    "original_local_productName": before,
-                },
-            )
-
-        def bulk_lookup() -> tuple[dict[str, object], dict[str, object]]:
-            identifiers = [
-                str(value)
-                for value in repo.read_dpp_ids_by_product_ids(
-                    [identity.product_id], limit=10, cursor="0"
-                ).dppIdentifiers
-            ]
-            includes_created = str(identity.dpp_id) in identifiers
-            if not includes_created:
-                raise AssertionError("bulk lookup did not include the created DPP")
-            return {"dpp_ids": identifiers}, {"includes_created_dpp": includes_created}
-
-        def read_by_dpp_id() -> tuple[dict[str, object], dict[str, object]]:
-            read_back = repo.read_dpp_by_id(str(identity.dpp_id))
-            matches_created = str(read_back.dpp_id) == str(identity.dpp_id)
-            if not matches_created:
-                raise AssertionError("read-back DPP ID did not match the created DPP")
-            return (
-                {"dppId": str(read_back.dpp_id), "productName": read_back.productName},
-                {"read_back_dpp_id_matches_created": matches_created},
-            )
-
-        def read_by_product_id() -> tuple[dict[str, object], dict[str, object]]:
-            resolved = repo.read_dpp_by_product_id(identity.product_id)
-            matches_created = str(resolved.dpp_id) == str(identity.dpp_id)
-            if not matches_created:
-                raise AssertionError("product-ID lookup did not resolve the created DPP")
-            return (
-                {"dppId": str(resolved.dpp_id), "productId": identity.product_id},
-                {"resolved_dpp_id_matches_created": matches_created},
-            )
-
-        run(
-            1,
-            "environment",
-            "Repository readiness",
-            "Confirm the repository is reachable.",
-            "DppRepoClient.health_check()",
-            {"name": "repository", "http_method": "GET", "route": "/health"},
-            lambda: _ready_response(repo.health_check(), config.repo_base_url),
-            input={"endpoint": config.repo_base_url},
-            explanation="The repository answered its public health endpoint.",
-            why="Business requests should follow a functional readiness check.",
+        probes = (
+            ("repository", config.repo_base_url),
+            ("registry", config.registry_base_url),
         )
-        run(
-            2,
-            "environment",
-            "Registry readiness",
-            "Confirm the registry is reachable.",
-            "DppRegistryClient.health_check()",
-            {"name": "registry", "http_method": "GET", "route": "/health"},
-            lambda: _ready_response(reg.health_check(), config.registry_base_url),
-            input={"endpoint": config.registry_base_url},
-            explanation="The registry answered its public health endpoint.",
-            why="Registration needs an available registry service.",
-        )
-        run(
-            3,
-            "local",
-            "Build and validate a DPP",
-            "Construct and validate the typed model before I/O.",
-            "validate_dpp4fun(dpp)",
-            {},
-            lambda: (
-                validate_dpp4fun(fixture)
-                or (
-                    {"model": "Dpp4Fun"},
+        for index, (name, endpoint) in enumerate(probes, 1):
+            readiness = wait_for_health(
+                scenario_id=f"INT-{index:02d}",
+                name=f"{name.title()} readiness",
+                endpoint=endpoint,
+                timeout_seconds=config.startup_timeout_seconds,
+            )
+            steps.append(
+                IntegrationStep(
+                    f"INT-{index:02d}",
+                    "environment",
+                    f"{name.title()} readiness",
+                    "PASS" if readiness.status.value == "PASSED" else "FAIL",
+                    "LIVE_MOCK_IMAGE",
+                    f"Confirm {name} is reachable before making requests.",
+                    {"endpoint": endpoint},
+                    {"public_api": "GET /health", "display": "http.get('/health')"},
                     {
-                        "productName": fixture.productName,
-                        "serialized_preview": Dpp4FunJsonCodec().to_json(fixture)[:160],
+                        "name": name,
+                        "http_method": "GET",
+                        "route": "/health",
+                        "interaction": f"GET {endpoint.rstrip('/')}/health",
                     },
+                    {"details": readiness.details},
+                    {"ready": readiness.status.value == "PASSED"},
+                    "Readiness uses a direct HTTP health probe.",
+                    "The clients expose API operations only.",
+                    "none",
+                    readiness.duration_seconds,
                 )
-            ),
-            input={
-                "dppId": str(identity.dpp_id),
-                "productId": identity.product_id,
-                "productName": fixture.productName,
-            },
-            explanation="This stage is local only.",
-            why="Typed validation catches invalid complete documents before creation.",
-        )
-        run(
-            4,
-            "create",
-            "Create the DPP",
-            "Persist the validated DPP.",
-            "DppRepoClient.create_dpp(dpp)",
-            {"name": "repository", "http_method": "POST", "route": "/v1/dpps"},
-            create,
-            input={"dppId": str(identity.dpp_id), "productName": fixture.productName},
-            explanation="The SDK serializes the typed DPP and decodes the response.",
-            why="Applications use typed values while the Mock service owns storage.",
-        )
-        active = True
-        run(
-            5,
-            "read",
-            "Read by DPP ID",
-            "Read the stored typed DPP.",
-            "DppRepoClient.read_dpp_by_id(dpp_id)",
-            {
-                "name": "repository",
-                "http_method": "GET",
-                "route": "/v1/dpps/{dppId}?representation=full",
-            },
-            read_by_dpp_id,
-            input={"dppId": str(identity.dpp_id)},
-            explanation="The full response is decoded through the public codec.",
-            why="Read-back proves persistence.",
-        )
-        if 6 in selected_steps:
-            run(
+            )
+            if readiness.status.value != "PASSED":
+                steps.extend(_blocked_steps()[index:7])
+                break
+
+        if len(steps) == 2:
+            result = validate_dpp4fun(fixture)
+            step, _ = _step(
+                3,
+                "local",
+                "Validate typed DPP",
+                "Check the profile at the application boundary.",
+                "validate_dpp4fun(dpp)",
+                {},
+                lambda: (
+                    (
+                        {"valid": result.is_valid, "issues": len(result.issues)},
+                        {"valid": result.is_valid},
+                    )
+                    if result.is_valid
+                    else (_ for _ in ()).throw(
+                        ValueError(f"DPP4Fun validation failed: {result.issues!r}")
+                    )
+                ),
+                input={"digitalProductPassportId": str(identity.dpp_id)},
+            )
+            steps.append(step)
+
+            def create() -> tuple[dict[str, object], dict[str, object]]:
+                nonlocal active, context
+                response = repo.create_dpp(wire, DppRepresentation.FULL)
+                dpp_id = response.digital_product_passport_id
+                if dpp_id != str(identity.dpp_id):
+                    raise AssertionError(f"unexpected created DPP identifier {dpp_id!r}")
+                active = True
+                context = replace(context, repository_created=True)
+                return {"digitalProductPassportId": dpp_id}, {"identifier_matches": True}
+
+            step, _ = _step(
+                4,
+                "create",
+                "Create DPP",
+                "Send canonical DPP JSON to the repository.",
+                "DppRepoClient.create_dpp(json_value, FULL)",
+                {
+                    "name": "repository",
+                    "http_method": "POST",
+                    "route": "/v1/dpps?representation=full",
+                },
+                create,
+                input={"digitalProductPassportId": str(identity.dpp_id)},
+                cleanup="deleted at end of run",
+            )
+            steps.append(step)
+
+            def read() -> tuple[dict[str, object], dict[str, object]]:
+                response = repo.read_dpp_by_id(str(identity.dpp_id), DppRepresentation.FULL)
+                if response.payload != wire:
+                    raise AssertionError("FULL JSON response differs from submitted document")
+                return {
+                    "digitalProductPassportId": response.payload.get("digitalProductPassportId")
+                }, {"matches_submitted_json": True}
+
+            step, _ = _step(
+                5,
+                "read",
+                "Read DPP JSON",
+                "Read the created DPP as canonical JSON.",
+                "DppRepoClient.read_dpp_by_id(id, FULL)",
+                {
+                    "name": "repository",
+                    "http_method": "GET",
+                    "route": "/v1/dpps/{id}?representation=full",
+                },
+                read,
+                input={"digitalProductPassportId": str(identity.dpp_id)},
+                cleanup="deleted at end of run",
+            )
+            steps.append(step)
+
+            request = RegisterDppRequest(
+                unique_product_identifier=identity.product_id,
+                digital_product_passport_id=str(identity.dpp_id),
+                unique_economic_operator_identifier=identity.registry_sensitive_id,
+                dpp_api_endpoint=f"{config.repo_base_url.rstrip('/')}/v1/dpps",
+            )
+
+            def register() -> tuple[dict[str, object], dict[str, object]]:
+                nonlocal context
+                response = reg.post_new_dpp_to_registry(request)
+                registration_id = response.registration_id
+                if not registration_id:
+                    raise AssertionError("registrationId missing from response")
+                context_update = replace(context, registration_id=registration_id)
+                # Assigning the frozen context is local report state, not SDK state.
+                context = context_update
+                return {"registrationId": registration_id}, {
+                    "request_fields": list(request.model_dump(by_alias=True))
+                }
+
+            step, _ = _step(
                 6,
-                "read",
-                "Read by product ID",
-                "Resolve the DPP through its product identifier.",
-                "DppRepoClient.read_dpp_by_product_id(product_id)",
-                {
-                    "name": "repository",
-                    "http_method": "GET",
-                    "route": "/v1/dppsByProductId/{productId}?representation=full",
-                },
-                read_by_product_id,
-                input={"productId": identity.product_id},
-                explanation="The repository supports both public identifiers.",
-                why="Consumers need identifier-based access without raw HTTP.",
-            )
-        if 7 in selected_steps:
-            run(
-                7,
-                "read",
-                "Bulk lookup by product ID",
-                "Find generated DPP identifiers through the public bulk lookup operation.",
-                "DppRepoClient.read_dpp_ids_by_product_ids(product_ids, limit, cursor)",
-                {"name": "repository", "http_method": "POST", "route": "/v1/dppsByProductIds"},
-                bulk_lookup,
-                input={"product_ids": [identity.product_id], "limit": 10, "cursor": "0"},
-                explanation="The SDK constructs the bulk request and decodes the identifier page.",
-                why="Consumers can locate known product identifiers without one request per DPP.",
-            )
-        before = fixture.productName
-        changed = f"CIR4FUN Demo Chair updated {identity.run_id.hex[:8]}"
-        run(
-            8,
-            "update",
-            "Update and read back",
-            "Apply a bounded merge patch and prove it persisted.",
-            "DppRepoClient.update_dpp_by_id(dpp_id, patch)",
-            {"name": "repository", "http_method": "PATCH", "route": "/v1/dpps/{dppId}"},
-            full_update,
-            input={"before": before, "patch": {"characteristics": {"productName": changed}}},
-            explanation="The server validates the resulting complete DPP.",
-            why="Partial updates avoid resending unrelated fields.",
-        )
-        current_lookup_at = datetime.now(UTC)
-
-        def history() -> tuple[dict[str, object], dict[str, object]]:
-            historical = repo.read_dpp_version_by_id_and_date(str(identity.dpp_id), created_at)
-            updated_historical = repo.read_dpp_version_by_id_and_date(
-                str(identity.dpp_id), updated_at
-            )
-            current = repo.read_dpp_version_by_id_and_date(str(identity.dpp_id), current_lookup_at)
-            if historical.productName != fixture.productName:
-                raise AssertionError("historical lookup did not return the created version")
-            if updated_historical.productName != changed:
-                raise AssertionError(
-                    "updated historical lookup did not return the full-patch version"
-                )
-            if current.productName != changed:
-                raise AssertionError("current history lookup did not return the updated version")
-            return (
-                {
-                    "historical_productName": historical.productName,
-                    "updated_historical_productName": updated_historical.productName,
-                    "current_productName": current.productName,
-                },
-                {
-                    "created_historical_differs_from_current": historical.productName
-                    != current.productName,
-                    "updated_historical_matches_current": updated_historical.productName
-                    == current.productName,
-                },
-            )
-
-        def fine_update() -> tuple[dict[str, object], dict[str, object]]:
-            nonlocal context
-            updated_value = repo.update_data_element(
-                str(identity.dpp_id), "$.characteristics.productName", fine_changed
-            )
-            updated = repo.read_dpp_by_id(str(identity.dpp_id))
-            context = replace(context, updated_dpp=updated)
-            return (
-                {"updated_value": updated_value},
-                {
-                    "read_back_value": repo.read_data_element(
-                        str(identity.dpp_id), "$.characteristics.productName"
-                    ),
-                    "full_dpp_value": updated.productName,
-                },
-            )
-
-        def fine_read() -> tuple[dict[str, object], dict[str, object]]:
-            value = repo.read_data_element(str(identity.dpp_id), "$.characteristics.productName")
-            matches_full_patch = value == changed
-            if not matches_full_patch:
-                raise AssertionError("fine-grained read did not match the full update")
-            return ({"value": value}, {"read_value_matches_full_patch": matches_full_patch})
-
-        if 9 in selected_steps:
-            if created_at is None or updated_at is None:
-                raise AssertionError("create/update timestamps were not captured")
-            run(
-                9,
-                "history",
-                "Read history",
-                "Compare original and current persisted versions.",
-                "DppRepoClient.read_dpp_version_by_id_and_date(dpp_id, date)",
-                {
-                    "name": "repository",
-                    "http_method": "GET",
-                    "route": "/v1/dppsByIdAndDate/{dppId}",
-                },
-                history,
-                input={
-                    "dppId": str(identity.dpp_id),
-                    "created_at_utc": created_at.isoformat(),
-                    "updated_at_utc": updated_at.isoformat(),
-                    "current_lookup_at_utc": current_lookup_at.isoformat(),
-                },
-                explanation="The public history operation takes an aware UTC instant.",
-                why="Consumers can resolve an earlier persisted representation.",
-            )
-        if 10 in selected_steps:
-            run(
-                10,
-                "fine_grained",
-                "Read one element",
-                "Read the selected product name without fetching a full DPP.",
-                "DppRepoClient.read_data_element(dpp_id, element_path)",
-                {
-                    "name": "repository",
-                    "http_method": "GET",
-                    "route": "/v1/dpps/{dppId}/elements/{elementPath}",
-                },
-                fine_read,
-                input={"selector": "$.characteristics.productName"},
-                explanation="The SDK encodes the bounded selector as one path segment.",
-                why="Fine-grained access can reduce response handling.",
-            )
-        fine_changed = f"{changed} fine"
-        if 11 in selected_steps:
-            run(
-                11,
-                "fine_grained",
-                "Update one element and read it back",
-                "Update the selected product name without replacing the full DPP.",
-                "DppRepoClient.update_data_element(dpp_id, element_path, value)",
-                {
-                    "name": "repository",
-                    "http_method": "PATCH",
-                    "route": "/v1/dpps/{dppId}/elements/{elementPath}",
-                },
-                fine_update,
-                input={"selector": "$.characteristics.productName", "value": fine_changed},
-                explanation=(
-                    "The SDK sends the selected element as an encoded dynamic path segment."
-                ),
-                why=(
-                    "Consumers can make a narrow, traceable change when the public service "
-                    "supports it."
-                ),
-            )
-        request = RegisterDppRequest(
-            uniqueProductIdentifier=identity.product_id,
-            digitalProductPassportId=str(identity.dpp_id),
-            uniqueEconomicOperatorIdentifier=identity.registry_sensitive_id,
-            dppApiEndpoint=config.repo_base_url,
-        )
-
-        def register() -> tuple[dict[str, object], dict[str, object]]:
-            nonlocal context
-            registration = reg.post_new_dpp_to_registry(request)
-            context = replace(
-                context,
-                registration_id=registration.registrationId,
-                registry_state="registered_retained_no_public_cleanup",
-            )
-            return (
-                {"registrationId": registration.registrationId},
-                {"registry_read_back": "not supported by public SDK"},
-            )
-
-        if 12 in selected_steps:
-            run(
-                12,
                 "registry",
-                "Register the DPP",
-                "Register the repository-backed DPP.",
+                "Register DPP",
+                "Register endpoint metadata as JSON.",
                 "DppRegistryClient.post_new_dpp_to_registry(request)",
                 {"name": "registry", "http_method": "POST", "route": "/v1/registerDPP"},
                 register,
-                input=request.model_dump(),
-                explanation="The registry verifies the referenced repository DPP.",
-                why="Registration connects public DPP metadata to a repository endpoint.",
+                input={"digitalProductPassportId": str(identity.dpp_id)},
+                cleanup="registry lifecycle is managed by its service",
             )
+            steps.append(step)
 
-        def invalid() -> tuple[dict[str, object], dict[str, object]]:
-            old = repo.read_dpp_by_id(str(identity.dpp_id)).productName
-            try:
-                repo.update_dpp_by_id(
-                    str(identity.dpp_id), {"passportMetadata": {"uniqueProductIdentifier": "bad"}}
-                )
-            except DppHttpClientError as exc:
-                return {"exception": "DppHttpClientError", "http_status": exc.status_code}, {
-                    "unchanged": repo.read_dpp_by_id(str(identity.dpp_id)).productName == old
-                }
-            raise AssertionError("invalid patch accepted")
+            def not_found() -> tuple[dict[str, object], dict[str, object]]:
+                try:
+                    repo.read_dpp_by_id("missing-" + identity.run_id.hex)
+                except DppApiClientError as exc:
+                    return {"exception": type(exc).__name__, "http_status": exc.http_status}, {
+                        "api_status": exc.status_code.value if exc.status_code else None
+                    }
+                raise AssertionError("unknown DPP did not produce API error")
 
-        if 13 in selected_steps:
-            response, proof = invalid()
-            steps.append(
-                _step(
-                    "INT-13",
-                    "error",
-                    "Reject invalid patch atomically",
-                    "Show a rejected patch does not change storage.",
-                    "DppRepoClient.update_dpp_by_id(dpp_id, patch)",
-                    {"name": "repository", "http_method": "PATCH", "route": "/v1/dpps/{dppId}"},
-                    input={"patch": {"passportMetadata": {"uniqueProductIdentifier": "bad"}}},
-                    response=response,
-                    proof=proof,
-                    status="EXPECTED_ERROR",
-                    explanation="The service rejected an immutable identifier change.",
-                    why="Atomic rejection prevents partial corrupted state.",
-                )
+            step, _ = _step(
+                7,
+                "error",
+                "Demonstrate not-found mapping",
+                "Show structured API error mapping.",
+                "DppRepoClient.read_dpp_by_id(unknown_id)",
+                {"name": "repository", "http_method": "GET", "route": "/v1/dpps/{unknownId}"},
+                not_found,
+                input={"digitalProductPassportId": "unknown"},
             )
-    except Exception:  # noqa: BLE001 - the report records the failed step and blocks dependents
-        pass
+            if step.status == "PASS":
+                step = replace(step, status="EXPECTED_ERROR")
+            steps.append(step)
     finally:
-        # Only delete the generated repository record after a successful create.
-        # Registry cleanup is intentionally not attempted: its public SDK API
-        # does not expose a matching deletion operation.
         if active:
             try:
                 repo.delete_dpp_by_id(str(identity.dpp_id))
-                active = False
-                try:
-                    repo.read_dpp_by_id(str(identity.dpp_id))
-                    raise AssertionError("deleted DPP remained readable")
-                except DppHttpClientError as exc:
-                    if exc.status_code != 404:
-                        raise
-                steps.append(
-                    _step(
-                        "INT-14",
-                        "cleanup",
-                        "Delete the demonstration DPP",
-                        "Remove the repository record created for this run.",
-                        "DppRepoClient.delete_dpp_by_id(dpp_id)",
-                        {
-                            "name": "repository",
-                            "http_method": "DELETE",
-                            "route": "/v1/dpps/{dppId}",
-                        },
-                        input={"dppId": str(identity.dpp_id)},
-                        response={"deleted": True},
-                        proof={"post_delete_read": "HTTP 404"},
-                        explanation="Registry cleanup is unavailable through the public SDK.",
-                        why="A generated identity makes cleanup safe and scoped.",
-                        cleanup="repository deleted; registry cleanup not supported",
-                    )
-                )
                 context = replace(
-                    context,
-                    repository_cleanup="deleted",
-                    post_delete_result="HTTP 404",
+                    context, repository_cleanup="deleted", post_delete_result="DELETE succeeded"
                 )
-            except Exception as exc:
-                warnings.append(f"repository cleanup failed: {type(exc).__name__}: {exc}")
+            except Exception as exc:  # noqa: BLE001 - cleanup errors are report evidence
                 context = replace(context, repository_cleanup="delete_failed")
-        if owned_reg:
-            reg.close()
-        if owned_repo:
+                warnings.append(f"repository cleanup failed: {type(exc).__name__}: {exc}")
+        if repo_owned:
             repo.close()
-    for i in sorted(selected_steps):
-        if any(step.step_id == f"INT-{i:02d}" for step in steps):
-            continue
-        steps.append(
-            _step(
-                f"INT-{i:02d}",
-                "blocked",
-                "Prerequisite failed",
-                "A prior live step failed.",
-                "not executed",
-                {},
-                status="BLOCKED",
-                explanation="The connected flow stopped safely.",
-                why="Dependent operations must not be reported as passed.",
-            )
+        if registry_owned:
+            reg.close()
+
+    steps.append(
+        IntegrationStep(
+            step_id="INT-08",
+            stage="cleanup",
+            title="Delete created DPP",
+            status=(
+                "PASS"
+                if context.repository_cleanup == "deleted"
+                else "FAIL"
+                if context.repository_cleanup == "delete_failed"
+                else "SKIP"
+            ),
+            evidence_class="LIVE_MOCK_IMAGE",
+            purpose="Remove the disposable record created by this run.",
+            input={"digitalProductPassportId": str(identity.dpp_id)},
+            operation={
+                "public_api": "DppRepoClient.delete_dpp_by_id(id)",
+                "display": "repo.delete_dpp_by_id(id)",
+            },
+            service={
+                "name": "repository",
+                "http_method": "DELETE",
+                "route": "/v1/dpps/{id}",
+                "interaction": "DELETE /v1/dpps/{digitalProductPassportId}",
+            },
+            response={"repository": context.repository_cleanup},
+            persistence_proof={"public_sdk_deleted": context.repository_cleanup == "deleted"},
+            explanation="Cleanup runs for records created by this invocation.",
+            why_it_matters="Disposable test records should not accumulate.",
+            cleanup_effect=context.repository_cleanup,
+            duration_seconds=0.0,
         )
-    steps.sort(key=lambda step: step.step_id)
+    )
     return IntegrationReport(
         identity,
         config,
@@ -688,159 +428,99 @@ def run_integration_scenarios(
 
 def integration_payload(report: IntegrationReport) -> dict[str, object]:
     steps = [asdict(step) for step in report.steps]
-    counts = {
-        key: sum(step["status"] == key for step in steps)
-        for key in ("PASS", "EXPECTED_ERROR", "BLOCKED", "SKIP", "FAIL")
+    statuses = [step.status for step in report.steps]
+    summary = {
+        "total": len(statuses),
+        "passed": statuses.count("PASS"),
+        "expected_error": statuses.count("EXPECTED_ERROR"),
+        "blocked": statuses.count("BLOCKED"),
+        "skipped": statuses.count("SKIP"),
+        "fail": statuses.count("FAIL"),
+        "steps_completed": statuses.count("PASS"),
+        "expected_errors_demonstrated": statuses.count("EXPECTED_ERROR"),
+        "blocked_steps": statuses.count("BLOCKED"),
+        "skipped_steps": statuses.count("SKIP"),
+        "unexpected_failures": statuses.count("FAIL"),
     }
+    config = report.config
+    runtime = report.image_identity
     return {
-        "schema_version": 1,
-        "report_type": "live_demonstration"
-        if report.profile == "demo"
-        else "live_integration_demonstration",
-        "mode": report.profile,
-        "run_id": str(report.identity.run_id),
-        "sdk": {"version": dpp_sdk.__version__, "location": str(dpp_sdk.__file__)},
+        "profile": report.profile,
+        "sdk": {"version": dpp_sdk.__version__},
         "services": {
             "repository": {
-                "endpoint": report.config.repo_base_url if report.config else "",
-                "configured_image": report.config.repo_image if report.config else "",
-                "runtime_digest": (
-                    report.image_identity.repo_runtime_digest
-                    if report.image_identity
-                    else "not captured"
-                ),
+                "endpoint": config.repo_base_url if config else "",
+                "configured_image": config.repo_image if config else "",
+                "runtime_digest": runtime.repo_runtime_digest if runtime else "NOT_CAPTURED",
             },
             "registry": {
-                "endpoint": report.config.registry_base_url if report.config else "",
-                "configured_image": report.config.registry_image if report.config else "",
-                "runtime_digest": (
-                    report.image_identity.registry_runtime_digest
-                    if report.image_identity
-                    else "not captured"
-                ),
+                "endpoint": config.registry_base_url if config else "",
+                "configured_image": config.registry_image if config else "",
+                "runtime_digest": runtime.registry_runtime_digest if runtime else "NOT_CAPTURED",
             },
         },
-        "image_identity_error": report.image_identity_error,
         "runtime_identity": {
-            "status": "CAPTURED" if report.image_identity else "NOT_CAPTURED",
-            "reason": report.image_identity_error or "No Compose project was supplied for capture.",
+            "status": "CAPTURED" if runtime else "NOT_CAPTURED",
+            "reason": report.image_identity_error,
         },
         "steps": steps,
-        "summary": {
-            "total": len(steps),
-            "passed": counts["PASS"],
-            "expected_error": counts["EXPECTED_ERROR"],
-            "blocked": counts["BLOCKED"],
-            "skipped": counts["SKIP"],
-            "fail": counts["FAIL"],
-            "steps_completed": len(steps) - counts["BLOCKED"] - counts["SKIP"],
-            "expected_errors_demonstrated": counts["EXPECTED_ERROR"],
-            "blocked_steps": counts["BLOCKED"],
-            "skipped_steps": counts["SKIP"],
-            "unexpected_failures": counts["FAIL"],
-        },
+        "summary": summary,
         "cleanup": {
             "repository": report.context.repository_cleanup,
             "public_sdk_deleted": (
-                [f"repository_dpp:{report.context.dpp_id}"]
+                [f"repository_dpp:{report.identity.dpp_id}"]
                 if report.context.repository_cleanup == "deleted"
                 else []
             ),
             "post_delete_result": report.context.post_delete_result,
-            "registry": "not_supported_public_api",
-            "registry_state": report.context.registry_state,
-            "docker_project_cleanup": "separate operator responsibility",
+            "registry": "public registration endpoint has no deregistration operation",
+            "registration_id": report.context.registration_id,
             "warnings": list(report.cleanup_warnings),
         },
         "strict_verification": {"status": "NOT_RUN", "next_command": "verify"},
-        "verdict": (
-            "LIVE_DEMONSTRATION_PASSED"
-            if report.profile == "demo" and not counts["FAIL"] and not counts["BLOCKED"]
-            else "LIVE_DEMONSTRATION_BLOCKED"
-            if report.profile == "demo" and counts["BLOCKED"] and not counts["FAIL"]
-            else "LIVE_DEMONSTRATION_FAILED"
-            if report.profile == "demo"
-            else "LIVE_INTEGRATION_DEMONSTRATION_PASSED"
-            if not counts["FAIL"] and not counts["BLOCKED"]
-            else "LIVE_INTEGRATION_DEMONSTRATION_FAILED"
-        ),
-        "exit_outcome": "SUCCESS" if not counts["FAIL"] and not counts["BLOCKED"] else "FAILURE",
+        "verdict": "LIVE_DEMONSTRATION_PASSED"
+        if summary["fail"] == 0 and summary["blocked"] == 0
+        else "LIVE_DEMONSTRATION_FAILED",
+        "exit_outcome": "SUCCESS"
+        if summary["fail"] == 0 and summary["blocked"] == 0
+        else "FAILURE",
     }
 
 
 def render_integration_text(report: IntegrationReport) -> str:
     payload = integration_payload(report)
     lines = [
-        "DPP Python SDK - Live Mock-service Integration Demonstration",
-        "=" * 52,
+        "DPP Python SDK - Live Mock-service Interoperability Example",
         f"Python SDK: {payload['sdk']['version']}",
-        "Mode: Live educational walkthrough",
-        "Scope: selected public SDK calls against already-running mock services.",
+        "Scope: typed DPP4Fun preparation and neutral JSON HTTP clients.",
         "Configured images:",
         "  repository: "
         f"{payload['services']['repository']['configured_image'] or 'not configured'}",
         f"  registry: {payload['services']['registry']['configured_image'] or 'not configured'}",
-        "Runtime digests:",
-        f"  repository: {payload['services']['repository']['runtime_digest']}",
-        f"  registry: {payload['services']['registry']['runtime_digest']}",
     ]
-    if payload["runtime_identity"]["status"] == "NOT_CAPTURED":
-        lines.append(f"  reason: {payload['runtime_identity']['reason']}")
-    stage_headings = {
-        "environment": "Environment and readiness",
-        "local": "Local DPP preparation",
-        "create": "Repository creation and reads",
-        "read": "Repository creation and reads",
-        "update": "Updates and history",
-        "history": "Updates and history",
-        "fine_grained": "Fine-grained access",
-        "registry": "Registry interaction",
-        "error": "Expected errors",
-        "cleanup": "Cleanup",
-        "blocked": "Blocked steps",
-    }
-    previous_heading = ""
     for step in report.steps:
-        heading = stage_headings.get(step.stage, step.stage.replace("_", " ").title())
-        if heading != previous_heading:
-            lines += ["", heading, "-" * len(heading)]
-            previous_heading = heading
-        lines += [
-            "",
-            f"[{step.step_id}] {step.title}",
-            f"Status: {step.status}",
-            f"Evidence: {step.evidence_class}",
-            "Purpose",
-            f"  {step.purpose}",
-            "Input",
-        ]
-        lines += [f"  {k}: {v}" for k, v in step.input.items()]
-        lines += ["SDK operation", f"  {step.operation['display']}"]
-        lines += ["Service interaction", f"  {step.service['interaction']}"]
-        lines += ["Observed result"]
-        lines += [f"  {k}: {v}" for k, v in step.response.items()]
-        lines += (
-            ["Persistence proof"]
-            + [f"  {k}: {v}" for k, v in step.persistence_proof.items()]
-            + [
-                "Explanation",
-                f"  {step.explanation}",
-                "Why this matters",
-                f"  {step.why_it_matters}",
-            ]
+        lines.extend(
+            (
+                "",
+                f"[{step.step_id}] {step.title}",
+                f"Status: {step.status}",
+                f"Purpose: {step.purpose}",
+                f"Operation: {step.operation['display']}",
+                f"Service interaction: {step.service['interaction']}",
+                f"Observed result: {step.response}",
+                f"Evidence: {step.persistence_proof}",
+                f"Why this matters: {step.why_it_matters}",
+            )
         )
-    lines += [
-        "",
-        "Summary:",
-        "  steps completed={steps_completed}; expected errors demonstrated="
-        "{expected_errors_demonstrated}; blocked steps={blocked_steps}; skipped steps="
-        "{skipped_steps}; unexpected failures={unexpected_failures}".format(**payload["summary"]),
-        "Cleanup report:",
-        "  repository={repository}; post_delete={post_delete_result}; public_sdk_deleted="
-        "{public_sdk_deleted}".format(**payload["cleanup"]),
-        "  registry=not supported by public SDK; state={registry_state}; docker project cleanup="
-        "separate operator responsibility".format(**payload["cleanup"]),
-        "Strict verification: NOT_RUN (separate command).",
-        "Next step: run verify with --compose-project and --sdk-wheel for strict evidence.",
-    ]
+    cleanup = payload["cleanup"]
+    lines.extend(
+        (
+            "",
+            "Cleanup report:",
+            f"  repository={cleanup['repository']}; post_delete={cleanup['post_delete_result']}",
+            f"  registry registration={cleanup['registration_id'] or 'not created'}; "
+            "registry deregistration is not a supported operation",
+            "Strict verification: NOT_RUN (separate command).",
+        )
+    )
     return "\n".join(lines)

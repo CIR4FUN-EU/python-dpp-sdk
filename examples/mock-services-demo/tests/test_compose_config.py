@@ -40,8 +40,8 @@ def test_compose_matches_mock_postgres_topology_with_public_api_images() -> None
     assert "dpp-registry-db-data:/var/lib/postgresql/data" in text
     assert "dpp-repo-db-data:" in text
     assert "dpp-registry-db-data:" in text
-    assert "${DPP_REPO_IMAGE:?set DPP_REPO_IMAGE}" in text
-    assert "${DPP_REGISTRY_IMAGE:?set DPP_REGISTRY_IMAGE}" in text
+    assert "${DPP_REPO_IMAGE:-ghcr.io/cir4fun-eu/dpp-repo-api:" in text
+    assert "${DPP_REGISTRY_IMAGE:-ghcr.io/cir4fun-eu/dpp-registry-api:" in text
     assert '"${MOCK_REPO_PORT:-8080}:${MOCK_REPO_PORT:-8080}"' in text
     assert '"${MOCK_REGISTRY_PORT:-8081}:${MOCK_REGISTRY_PORT:-8081}"' in text
     assert "DPP_REPO_BACKEND: postgres" in text
