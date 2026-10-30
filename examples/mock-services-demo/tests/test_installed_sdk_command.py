@@ -161,6 +161,6 @@ def test_installed_sdk_command_needs_no_service_profile_or_checkout(tmp_path: Pa
     assert maintainer.returncode == 0, maintainer.stderr
     maintainer_report = json.loads(maintainer.stdout)
     assert tuple(item["scenario_id"] for item in maintainer_report["results"]) == tuple(
-        f"SDK-{index:02d}" for index in range(1, 18)
+        f"SDK-{index:02d}" for index in range(1, 13)
     )
     assert Path(maintainer_report["sdk_location"]).is_relative_to(isolated_environment)

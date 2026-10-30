@@ -1,5 +1,7 @@
 flowchart LR
-  App["Python application"] -->|uses| Repo["Repository Client<br/>DppRepoClient"]
-  App -->|uses| Registry["Registry Client<br/>DppRegistryClient"]
-  Repo -->|HTTP| RepoApi["Public repository API"]
-  Registry -->|HTTP| RegistryApi["Public registry API"]
+  App["Python application<br/>JSON values"] -->|uses| Repo["DppRepoClient"]
+  App -->|uses| Registry["DppRegistryClient"]
+  Repo -->|generic JSON| Http["Shared HTTPX transport<br/>response envelopes"]
+  Registry -->|generic JSON| Http
+  Http -->|repository requests| RepoApi["External repository API"]
+  Http -->|registry requests| RegistryApi["External registry API"]

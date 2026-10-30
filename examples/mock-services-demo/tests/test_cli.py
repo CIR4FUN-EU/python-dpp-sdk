@@ -313,7 +313,7 @@ def test_integration_blocked_readiness_writes_json_failure_and_returns_nonzero(
     file_payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert console_payload == file_payload
     assert console_payload["exit_outcome"] == "FAILURE"
-    assert console_payload["summary"]["blocked_steps"] == 14
+    assert console_payload["summary"]["blocked_steps"] == 8
 
 
 def test_integration_invalid_configuration_and_missing_mode_return_parser_errors(
@@ -469,12 +469,12 @@ def test_installed_sdk_provenance_is_bound_to_supplied_wheel(
     sdk_file = site_packages / "dpp_sdk" / "__init__.py"
     sdk_file.parent.mkdir(parents=True)
     sdk_file.write_text("", encoding="utf-8")
-    wheel = tmp_path / "dpp_sdk-0.4.0-py3-none-any.whl"
+    wheel = tmp_path / f"dpp_sdk-{cli.dpp_sdk.__version__}-py3-none-any.whl"
     wheel.write_bytes(b"exact wheel")
     digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
 
     class FakeDistribution:
-        version = "0.4.0"
+        version = cli.dpp_sdk.__version__
 
         def locate_file(self, _path: str) -> Path:
             return site_packages

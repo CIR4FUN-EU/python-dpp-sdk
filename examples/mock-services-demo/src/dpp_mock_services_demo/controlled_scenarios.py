@@ -1,16 +1,15 @@
-"""Deterministic public-client contracts that are unsafe or impossible to induce live."""
+"""Deterministic client contract examples that need no live services."""
 
 from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any
 from uuid import UUID
 
 import httpx
-from dpp_sdk import Dpp4FunJsonCodec, OrganizationRole, to_json, validate_dpp4fun
 from dpp_sdk.clients import (
     DppApiClientError,
     DppHttpClientError,
@@ -18,7 +17,7 @@ from dpp_sdk.clients import (
     DppNetworkClientError,
     DppRegistryClient,
     DppRepoClient,
-    DppValidationClientError,
+    DppStatusCode,
     RegisterDppRequest,
 )
 
@@ -30,39 +29,31 @@ def _result(scenario_id: str, name: str, operation: Callable[[], str]) -> Scenar
     started = perf_counter()
     try:
         details = operation()
-    except Exception as exc:  # noqa: BLE001 - controlled boundary records unexpected category
+    except Exception as exc:  # noqa: BLE001 - report unexpected categories at this boundary
         return ScenarioResult(
-            scenario_id=scenario_id,
-            name=name,
-            category="CONTROLLED",
-            status=ScenarioStatus.FAILED,
-            duration_seconds=perf_counter() - started,
-            summary="Controlled client assertion failed",
-            details=f"{type(exc).__name__}: {exc}",
+            scenario_id,
+            name,
+            "CONTROLLED",
+            ScenarioStatus.FAILED,
+            perf_counter() - started,
+            "Controlled client assertion failed",
+            f"{type(exc).__name__}: {exc}",
         )
     return ScenarioResult(
-        scenario_id=scenario_id,
-        name=name,
-        category="CONTROLLED",
-        status=ScenarioStatus.PASSED,
-        duration_seconds=perf_counter() - started,
-        summary="Controlled client assertion passed",
-        details=details,
+        scenario_id,
+        name,
+        "CONTROLLED",
+        ScenarioStatus.PASSED,
+        perf_counter() - started,
+        "Controlled client assertion passed",
+        details,
     )
 
 
-def _expect(
-    error_type: type[BaseException],
-    operation: Callable[[], object],
-    *,
-    cause_type: type[BaseException] | None = None,
-) -> BaseException:
+def _expect(error_type: type[BaseException], operation: Callable[[], object]) -> BaseException:
     try:
         operation()
     except error_type as exc:
-        if cause_type is not None and not isinstance(exc.__cause__, cause_type):
-            actual = type(exc.__cause__).__name__ if exc.__cause__ is not None else "None"
-            raise AssertionError(f"expected cause {cause_type.__name__}, got {actual}") from exc
         return exc
     raise AssertionError(f"expected {error_type.__name__}")
 
@@ -71,145 +62,83 @@ def _identity() -> DemoIdentity:
     return DemoIdentity.from_run_id(UUID("12345678-1234-5678-9234-567812345678"))
 
 
-def _rep_16() -> str:
-    fixture = build_complete_fixture(_identity())
-    supplier = fixture.supplier
-    assert supplier is not None
-    invalid_supplier = supplier.with_updates(role=OrganizationRole.MANUFACTURER)
-    invalid_nameplate = fixture.nameplate.with_updates(supplier=invalid_supplier)
-    invalid = fixture.with_updates(
-        coreDpp=fixture.coreDpp.with_updates(nameplate=invalid_nameplate)
-    )
-    requests = 0
-
-    def handler(_request: httpx.Request) -> httpx.Response:
-        nonlocal requests
-        requests += 1
-        return httpx.Response(500)
-
-    with httpx.Client(transport=httpx.MockTransport(handler)) as http:
-        repo = DppRepoClient(
-            "http://repo.test",
-            Dpp4FunJsonCodec(),
-            validate_dpp4fun,
-            client=http,
-        )
-        _expect(DppValidationClientError, lambda: repo.create_dpp(invalid))
-    if requests != 0:
-        raise AssertionError(f"validation failure sent {requests} request(s)")
-    return "invalid supplier role became DppValidationClientError with zero requests"
-
-
-def _path_timestamp_and_body_contracts() -> None:
-    fixture = build_complete_fixture(_identity())
-    encoded = b"*%7E%20%2F%2B%25Gr%C3%BC%C3%9Fe"
-    value = "*~ /+%Grüße"
-    observed_paths: list[bytes] = []
-    observed_bodies: list[bytes] = []
+def _path_timestamp_and_body_contracts() -> str:
+    observed: list[tuple[bytes, bytes]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        observed_paths.append(request.url.raw_path)
-        observed_bodies.append(request.content)
-        if "dppsByIdAndDate" in request.url.path:
-            payload: Any = json.loads(to_json(fixture))
+        observed.append((request.url.raw_path, request.content))
+        if request.url.path.endswith("/dppsByProductIds"):
+            payload: Any = {"dppIdentifiers": ["dpp-1"], "nextCursor": None}
+        elif request.method == "GET":
+            payload = {"digitalProductPassportId": "DPP 1"}
         else:
             payload = "accepted"
         return httpx.Response(200, json={"statusCode": "Success", "payload": payload})
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http:
-        repo = DppRepoClient(
-            "http://repo.test",
-            Dpp4FunJsonCodec(),
-            validate_dpp4fun,
-            client=http,
-        )
-        repo.read_data_element(value, value)
+        repo = DppRepoClient("http://repo.test", client=http)
+        repo.read_data_element("DPP 1", "$.characteristics.color")
         repo.read_dpp_version_by_id_and_date(
             "DPP 1",
             datetime(2026, 1, 15, 14, 0, 0, 123000, tzinfo=timezone(timedelta(hours=2))),
         )
-        repo.update_data_element("D", "$.characteristics.productName", "scalar")
-        repo.update_data_element("D", "$.characteristics.color", None)
+        repo.update_data_element("D", "$.characteristics.color", "green")
+        repo.read_dpp_ids_by_product_ids(["product-1"], limit=10, cursor="0")
 
-    expected_element = b"/v1/dpps/" + encoded + b"/elements/" + encoded
-    if observed_paths[0] != expected_element:
-        raise AssertionError(f"unexpected encoded path {observed_paths[0]!r}")
-    expected_history = (
-        b"/v1/dppsByIdAndDate/DPP%201?date=2026-01-15T12%3A00%3A00.123Z&representation=full"
-    )
-    if observed_paths[1] != expected_history:
-        raise AssertionError(f"unexpected timestamp path {observed_paths[1]!r}")
-    if observed_bodies[2:] != [b'"scalar"', b"null"]:
-        raise AssertionError(f"unexpected fine update bodies {observed_bodies[2:]!r}")
-
-
-class _NullCodec:
-    def to_json(self, _value: object) -> str:
-        return "{}"
-
-    def from_json(self, _raw: str) -> object:
-        return None  # type: ignore[return-value]
+    assert observed[0][0] == b"/v1/dpps/DPP%201/elements/%24.characteristics.color"
+    assert observed[1][0] == (b"/v1/dppsByIdAndDate/DPP%201?date=2026-01-15T12%3A00%3A00.123000Z")
+    assert observed[2][1] == b'"green"'
+    assert json.loads(observed[3][1]) == {
+        "productIdentifiers": ["product-1"],
+        "limit": 10,
+        "cursor": "0",
+    }
+    return "element, history, patch, and bulk lookup request contracts verified"
 
 
-def _error_pipeline_contracts() -> None:
-    def repo_for(
-        handler: Callable[[httpx.Request], httpx.Response],
-    ) -> tuple[DppRepoClient[Any], httpx.Client]:
+def _error_pipeline_contracts() -> str:
+    def client_for(handler: Callable[[httpx.Request], httpx.Response]):
         http = httpx.Client(transport=httpx.MockTransport(handler))
-        repo = DppRepoClient(
-            "http://repo.test",
-            _NullCodec(),
-            lambda _value: None,
-            client=http,
-        )
-        return repo, http
+        return DppRepoClient("http://repo.test", client=http), http
 
-    repo, http = repo_for(lambda _request: httpx.Response(503, text="unavailable"))
+    repo, http = client_for(lambda _request: httpx.Response(503, text="unavailable"))
     try:
         error = _expect(DppHttpClientError, lambda: repo.read_dpp_by_id("D"))
         assert isinstance(error, DppHttpClientError) and error.status_code == 503
     finally:
         http.close()
 
-    repo, http = repo_for(
+    repo, http = client_for(
         lambda _request: httpx.Response(
-            200,
-            json={"statusCode": "ClientErrorBadRequest", "payload": {}},
+            200, json={"statusCode": "ClientErrorBadRequest", "message": []}
         )
     )
     try:
-        _expect(DppApiClientError, lambda: repo.read_dpp_by_id("D"))
+        error = _expect(DppApiClientError, lambda: repo.read_dpp_by_id("D"))
+        assert isinstance(error, DppApiClientError)
+        assert error.status_code is DppStatusCode.ClientErrorBadRequest
     finally:
         http.close()
 
-    mapping_handlers = (
+    for handler in (
         lambda _request: httpx.Response(200, text="not-json"),
         lambda _request: httpx.Response(200, json={"payload": {}}),
-        lambda _request: httpx.Response(200, json={"statusCode": "Success"}),
-        lambda _request: httpx.Response(200, json={"statusCode": "Success", "payload": {}}),
-    )
-    for index, handler in enumerate(mapping_handlers):
-        repo, http = repo_for(handler)
+    ):
+        repo, http = client_for(handler)
         try:
-            error = _expect(
+            _expect(
                 DppMappingClientError,
                 lambda current_repo=repo: current_repo.read_dpp_by_id("D"),
             )
-            if error.__cause__ is None:
-                raise AssertionError(f"mapping case {index} has no cause")
         finally:
             http.close()
 
     def network_handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("controlled network failure", request=request)
 
-    repo, http = repo_for(network_handler)
+    repo, http = client_for(network_handler)
     try:
-        _expect(
-            DppNetworkClientError,
-            lambda: repo.read_dpp_by_id("D"),
-            cause_type=httpx.ConnectError,
-        )
+        _expect(DppNetworkClientError, lambda: repo.read_dpp_by_id("D"))
     finally:
         http.close()
 
@@ -220,95 +149,77 @@ def _error_pipeline_contracts() -> None:
         sent += 1
         return httpx.Response(500)
 
-    with httpx.Client(transport=httpx.MockTransport(registry_handler)) as registry_http:
-        registry = DppRegistryClient("http://registry.test", client=registry_http)
-        _expect(
-            DppMappingClientError,
-            lambda: registry.post_new_dpp_to_registry(None),  # type: ignore[arg-type]
-            cause_type=ValueError,
-        )
-    if sent:
-        raise AssertionError("invalid registry request reached transport")
+    with httpx.Client(transport=httpx.MockTransport(registry_handler)) as http:
+        registry = DppRegistryClient("http://registry.test", client=http)
+        _expect(DppMappingClientError, lambda: registry.post_new_dpp_to_registry(None))  # type: ignore[arg-type]
+    assert sent == 0
+    return "HTTP, API, mapping, network, and preflight input failures verified"
 
 
-def _rep_17() -> str:
-    _path_timestamp_and_body_contracts()
-    _error_pipeline_contracts()
-    return (
-        "exact path/timestamp/body wire; HTTP/API/mapping/network categories; "
-        "null payload/codec and invalid registry request causes"
-    )
-
-
-def _rep_18() -> str:
-    fixture = build_complete_fixture(_identity())
+def _versioned_endpoint_and_identity() -> str:
     observed: list[bytes] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         observed.append(request.url.raw_path)
         return httpx.Response(
             200,
-            json={"statusCode": "Success", "payload": json.loads(to_json(fixture))},
+            json={"statusCode": "Success", "payload": {"dppIdentifiers": [], "nextCursor": None}},
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http:
-        repo = DppRepoClient(
-            "http://repo.test",
-            Dpp4FunJsonCodec(),
-            validate_dpp4fun,
-            client=http,
+        DppRepoClient("http://repo.test", client=http).read_dpp_ids_by_product_ids(
+            ["Product 1", "x/y"], limit=5
         )
-        repo.read_dpp_version_by_product_id_and_date(
-            "Product 1",
-            datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
-        )
-    expected = b"/dppsByProductIdAndDate/Product%201?date=2026-01-15T12%3A00%3A00Z"
-    if observed != [expected]:
-        raise AssertionError(f"unexpected legacy route {observed!r}")
-    return "legacy product-history route shape verified without a Mock-image call"
+    if observed != [b"/v1/dppsByProductIds"]:
+        raise AssertionError(f"unexpected product batch route {observed!r}")
+    return "versioned batch lookup route and JSON body verified"
 
 
-def _reg_08() -> str:
-    observed_keys: list[set[str]] = []
+def _rep17() -> str:
+    paths = _path_timestamp_and_body_contracts()
+    errors = _error_pipeline_contracts()
+    return f"{paths}; {errors}"
+
+
+def _registry_wire_contract() -> str:
+    observed: list[bytes] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        observed_keys.append(set(json.loads(request.content)))
+        observed.append(request.content)
         return httpx.Response(
             200,
-            json={
-                "statusCode": "SuccessCreated",
-                "payload": {"registrationId": "registration-1"},
-            },
+            json={"statusCode": "SuccessCreated", "payload": {"registrationId": "registration-1"}},
         )
 
     request = RegisterDppRequest(
-        uniqueProductIdentifier="product-1",
-        digitalProductPassportId="dpp-1",
-        uniqueEconomicOperatorIdentifier="operator-1",
-        dppApiEndpoint="http://repo.test",
+        unique_product_identifier="product-1",
+        digital_product_passport_id="dpp-1",
+        unique_economic_operator_identifier="operator-1",
+        dpp_api_endpoint="http://repo.test/v1/dpps",
     )
     with httpx.Client(transport=httpx.MockTransport(handler)) as http:
-        registry = DppRegistryClient("http://registry.test", client=http)
-        response = registry.post_new_dpp_to_registry(request)
-    expected = {
-        "uniqueProductIdentifier",
-        "digitalProductPassportId",
-        "uniqueEconomicOperatorIdentifier",
-        "dppApiEndpoint",
-    }
-    if observed_keys != [expected]:
-        raise AssertionError(f"unexpected registry request keys {observed_keys!r}")
-    if response.registrationId != "registration-1":
-        raise AssertionError("canonical registrationId was not decoded")
-    return "four canonical request keys and registrationId response verified"
+        response = DppRegistryClient("http://registry.test", client=http).post_new_dpp_to_registry(
+            request
+        )
+    if json.loads(observed[0]) != request.model_dump(mode="json", by_alias=True):
+        raise AssertionError("registry request did not preserve canonical JSON fields")
+    if response.registration_id != "registration-1":
+        raise AssertionError("registration response was not decoded")
+    return "canonical registration request and registrationId response verified"
+
+
+def _semantic_boundary() -> str:
+    fixture = build_complete_fixture(_identity())
+    if not fixture.passport.data_elements:
+        raise AssertionError("typed aggregate lost its core elements")
+    return "typed DPP4Fun remains an application concern outside the JSON client"
 
 
 def run_controlled_scenarios() -> tuple[ScenarioResult, ...]:
-    """Run approved deterministic transport/client assertions without external sockets."""
-
+    """Run exact HTTP behavior assertions without external sockets."""
     return (
-        _result("REP-16", "Local create validation before I/O", _rep_16),
-        _result("REP-17", "Exact wire and client error pipeline", _rep_17),
-        _result("REP-18", "Legacy product-history route classification", _rep_18),
-        _result("REG-08", "Canonical registry request and response keys", _reg_08),
+        _result("REP-16", "Typed model remains outside the JSON client", _semantic_boundary),
+        _result("REP-17", "Exact routes, bodies and error categories", _rep17),
+        _result("REP-18", "Versioned product batch endpoint", _versioned_endpoint_and_identity),
+        _result("REG-08", "Canonical registry request and response", _registry_wire_contract),
     )

@@ -1,23 +1,14 @@
-"""API wrapper envelope and request/response DTOs for the DPP HTTP clients.
-
-Ports ``dpp.repo.payloads.*`` and ``dpp.registry.payloads.*`` (which are
-identical for the shared envelope) into a single module. These models use
-``extra='ignore'`` to mirror the clients' Jackson config, which disables
-``FAIL_ON_UNKNOWN_PROPERTIES``.
-"""
+"""Neutral request and response JSON contracts for repository and registry APIs."""
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class DppStatusCode(StrEnum):
-    """Application-level status in the API wrapper ``statusCode`` field."""
-
     Success = "Success"
     SuccessCreated = "SuccessCreated"
     SuccessAccepted = "SuccessAccepted"
@@ -28,123 +19,96 @@ class DppStatusCode(StrEnum):
     ClientMethodNotAllowed = "ClientMethodNotAllowed"
     ClientErrorResourceNotFound = "ClientErrorResourceNotFound"
     ClientResourceConflict = "ClientResourceConflict"
+    ServerNotImplemented = "ServerNotImplemented"
     ServerInternalError = "ServerInternalError"
     ServerErrorBadGateway = "ServerErrorBadGateway"
-    ServerNotImplemented = "ServerNotImplemented"
-
-    @classmethod
-    def _missing_(cls, value: object) -> DppStatusCode | None:
-        # Mirror the Java @JsonCreator aliases.
-        aliases = {
-            "ClientErrorNotAuthorized": cls.ClientNotAuthorized,
-            "ClientErrorForbidden": cls.ClientForbidden,
-        }
-        if isinstance(value, str):
-            return aliases.get(value)
-        return None
 
     @property
     def is_success(self) -> bool:
         return self in {
-            DppStatusCode.Success,
-            DppStatusCode.SuccessCreated,
-            DppStatusCode.SuccessAccepted,
-            DppStatusCode.SuccessNoContent,
+            self.Success,
+            self.SuccessCreated,
+            self.SuccessAccepted,
+            self.SuccessNoContent,
         }
 
 
 class MessageType(StrEnum):
-    """Severity/category for API wrapper messages."""
-
     Info = "Info"
     Warning = "Warning"
     Error = "Error"
     Exception = "Exception"
 
 
-class _ClientBase(BaseModel):
+class DppRepresentation(StrEnum):
+    COMPRESSED = "compressed"
+    FULL = "full"
+
+    @classmethod
+    def from_query(cls, value: str | None) -> DppRepresentation:
+        if value is None or value.lower() == "compressed":
+            return cls.COMPRESSED
+        if value.lower() == "full":
+            return cls.FULL
+        raise ValueError("representation must be full or compressed")
+
+    @property
+    def query_suffix(self) -> str:
+        return "?representation=full" if self is self.FULL else ""
+
+
+class _Payload(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
 
-class DppApiMessage(_ClientBase):
-    messageType: MessageType | None = None
-    text: str | None = None
+class DppApiMessage(_Payload):
+    message_type: MessageType = Field(alias="messageType")
+    text: str
     code: str | None = None
-    correlationId: str | None = None
-    timestamp: datetime | None = None
+    correlation_id: str | None = Field(default=None, alias="correlationId")
+    timestamp: AwareDatetime | None = None
 
 
-class DppApiResponse(_ClientBase):
-    """Standard response envelope; ``payload`` is left as raw JSON (``Any``)."""
-
-    statusCode: DppStatusCode | None = None
+class DppApiResponse(_Payload):
+    status_code: DppStatusCode | None = Field(default=None, alias="statusCode")
     payload: Any = None
-    messages: list[DppApiMessage] | None = None
+    message: list[DppApiMessage] | None = None
 
 
-# --- repository DTOs ------------------------------------------------------------
-class CreateDppResponse(_ClientBase):
-    dppId: str | None = None
+class CreateDppResponse(_Payload):
+    status_code: DppStatusCode | None = Field(default=None, alias="statusCode")
+    message: list[DppApiMessage] | None = None
+    digital_product_passport_id: str | None = Field(default=None, alias="digitalProductPassportId")
 
 
-class DeleteDppResponse(_ClientBase):
-    statusCode: DppStatusCode | None = None
-    messages: list[DppApiMessage] | None = None
+class DeleteDppResponse(_Payload):
+    status_code: DppStatusCode | None = Field(default=None, alias="statusCode")
+    message: list[DppApiMessage] | None = None
 
 
-class ReadDppIdsRequest(_ClientBase):
-    productIdentifiers: list[str] | None = None
+class ReadDppIdsRequest(_Payload):
+    product_identifiers: list[str] | None = Field(default=None, alias="productIdentifiers")
     limit: int | None = None
     cursor: str | None = None
 
 
-class ReadDppIdsResponse(_ClientBase):
-    dppIdentifiers: list[str] | None = None
-    nextCursor: str | None = None
+class ReadDppIdsResponse(_Payload):
+    status_code: DppStatusCode | None = Field(default=None, alias="statusCode")
+    message: list[DppApiMessage] | None = None
+    dpp_identifiers: list[str] = Field(alias="dppIdentifiers")
+    next_cursor: str | None = Field(default=None, alias="nextCursor")
 
 
-class UpdateDataElementRequest(_ClientBase):
-    payload: Any = None
-
-
-# --- registry DTOs --------------------------------------------------------------
-class RegisterDppRequest(_ClientBase):
-    uniqueProductIdentifier: str | None = Field(
-        validation_alias=AliasChoices("uniqueProductIdentifier", "productIdentifier"), default=None
+class RegisterDppRequest(_Payload):
+    unique_product_identifier: str | None = Field(default=None, alias="uniqueProductIdentifier")
+    digital_product_passport_id: str | None = Field(default=None, alias="digitalProductPassportId")
+    unique_economic_operator_identifier: str | None = Field(
+        default=None, alias="uniqueEconomicOperatorIdentifier"
     )
-    digitalProductPassportId: str | None = Field(
-        validation_alias=AliasChoices("digitalProductPassportId", "dppIdentifier"), default=None
-    )
-    uniqueEconomicOperatorIdentifier: str | None = Field(
-        validation_alias=AliasChoices("uniqueEconomicOperatorIdentifier", "operatorIdentifier"),
-        default=None,
-    )
-    dppApiEndpoint: str | None = Field(
-        validation_alias=AliasChoices("dppApiEndpoint", "repoUrl"), default=None
-    )
-
-    @property
-    def productIdentifier(self) -> str | None:  # noqa: N802
-        return self.uniqueProductIdentifier
-
-    @property
-    def dppIdentifier(self) -> str | None:  # noqa: N802
-        return self.digitalProductPassportId
-
-    @property
-    def operatorIdentifier(self) -> str | None:  # noqa: N802
-        return self.uniqueEconomicOperatorIdentifier
-
-    @property
-    def repoUrl(self) -> str | None:  # noqa: N802
-        return self.dppApiEndpoint
+    dpp_api_endpoint: str | None = Field(default=None, alias="dppApiEndpoint")
 
 
-class RegisterDppResponse(_ClientBase):
-    registrationId: str | None = Field(
-        validation_alias=AliasChoices("registrationId", "registryIdentifier"), default=None
-    )
-
-    @property
-    def registryIdentifier(self) -> str | None:  # noqa: N802
-        return self.registrationId
+class RegisterDppResponse(_Payload):
+    status_code: DppStatusCode | None = Field(default=None, alias="statusCode")
+    message: list[DppApiMessage] | None = None
+    registration_id: str | None = Field(default=None, alias="registrationId")

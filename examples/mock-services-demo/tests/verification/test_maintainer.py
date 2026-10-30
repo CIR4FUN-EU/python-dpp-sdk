@@ -24,7 +24,7 @@ def test_maintainer_summary_is_one_line_and_omits_scenario_details(
     output = capsys.readouterr().out.strip()
     assert output.startswith("SDK:")
     assert "SDK-01" not in output
-    assert "total=17" in output
+    assert "total=12" in output
 
 
 def test_public_cli_help_keeps_legacy_modes_out_of_the_consumer_path() -> None:
@@ -38,5 +38,5 @@ def test_public_cli_help_keeps_legacy_modes_out_of_the_consumer_path() -> None:
 def test_sdk_contract_mode_keeps_full_sdk_inventory() -> None:
     report = run_maintainer_mode("sdk-contracts")
     assert tuple(result.scenario_id for result in report.results) == tuple(
-        f"SDK-{index:02d}" for index in range(1, 18)
+        f"SDK-{index:02d}" for index in range(1, 13)
     )

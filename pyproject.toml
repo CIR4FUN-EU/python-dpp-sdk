@@ -5,14 +5,17 @@ build-backend = "hatchling.build"
 [project]
 name = "dpp-sdk"
 dynamic = ["version"]
-description = "Python SDK for interacting with Digital Product Passport (DPP) System Infrastructure "
+description = "Python SDK for interacting with Digital Product Passport (DPP) System Infrastructure"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Enno Mueller" }]
-keywords = ["dpp", "digital-product-passport", "prEN-18222", "sustainability"]
+keywords = ["dpp", "digital-product-passport", "EN-18222", "EN-18223", "sustainability"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -40,6 +43,7 @@ release = [
 Homepage = "https://github.com/CIR4FUN-EU/python-dpp-sdk"
 Repository = "https://github.com/CIR4FUN-EU/python-dpp-sdk"
 Issues = "https://github.com/CIR4FUN-EU/python-dpp-sdk/issues"
+Documentation = "https://github.com/CIR4FUN-EU/python-dpp-sdk/tree/main/docs"
 Changelog = "https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
@@ -47,7 +51,7 @@ path = "src/dpp_sdk/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dpp_sdk"]
-exclude = ["**/AGENTS.md", "**/.codex/**"]
+exclude = ["**/AGENTS.md", "**/.codex/**", "**/README.md"]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -55,7 +59,12 @@ include = [
     "tests",
     "README.md",
     "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "docs/*.md",
+    "docs/architecture/*.mmd",
+    "docs/architecture/*.svg",
     "LICENSE",
+    "examples/consumer_lifecycle.py",
 ]
 exclude = [
     "examples/mock-services-demo",
@@ -87,16 +96,10 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "N"]
 
-# The models and wrapper DTOs deliberately use camelCase field/accessor names to
-# match the JSON wire keys of the Java SDK 1:1 — N802/N815 are intentional there.
-[tool.ruff.lint.per-file-ignores]
-"src/dpp_sdk/core/model.py" = ["N802", "N815"]
-"src/dpp_sdk/dpp4fun/model.py" = ["N802", "N815"]
-"src/dpp_sdk/clients/payloads.py" = ["N815"]
-
 [tool.mypy]
 python_version = "3.11"
 strict = true
+plugins = ["pydantic.mypy"]
 packages = ["dpp_sdk"]
 mypy_path = "src"
 

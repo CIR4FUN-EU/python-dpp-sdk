@@ -12,10 +12,6 @@ class DppClientError(Exception):
     """Base class for all DPP HTTP client errors."""
 
 
-class DppValidationClientError(DppClientError):
-    """Raised when a DPP fails validation before a request is sent."""
-
-
 class DppMappingClientError(DppClientError):
     """Raised when request/response JSON cannot be serialized or parsed."""
 
@@ -25,7 +21,7 @@ class DppNetworkClientError(DppClientError):
 
 
 class DppHttpClientError(DppClientError):
-    """Raised when an endpoint returns a non-2xx HTTP status."""
+    """Raised when an endpoint returns an unstructured non-2xx HTTP status."""
 
     def __init__(self, message: str, status_code: int, response_body: str) -> None:
         super().__init__(message)
@@ -34,16 +30,18 @@ class DppHttpClientError(DppClientError):
 
 
 class DppApiClientError(DppClientError):
-    """Raised when a 2xx response carries an error status in the API wrapper."""
+    """Raised when an API envelope reports failure, including structured HTTP errors."""
 
     def __init__(
         self,
-        message: str,
-        status_code: DppStatusCode | None,
-        messages: list[DppApiMessage] | None,
+        error_message: str,
+        http_status: int,
+        status_code: DppStatusCode,
+        message: list[DppApiMessage] | None,
         raw_response_body: str,
     ) -> None:
-        super().__init__(message)
+        super().__init__(error_message)
+        self.http_status = http_status
         self.status_code = status_code
-        self.messages = messages
+        self.message = message
         self.raw_response_body = raw_response_body

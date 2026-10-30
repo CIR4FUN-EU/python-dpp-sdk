@@ -67,9 +67,12 @@ class _RecordingHandler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length)
         if path == "/v1/dpps":
             self.server.dpp = json.loads(raw)
-            self.server.dpp_id = self.server.dpp["passportMetadata"]["uniqueProductIdentifier"]
+            self.server.dpp_id = self.server.dpp["dpp_header"]["digitalProductPassportId"]
             self._send_json(
-                {"statusCode": "SuccessCreated", "payload": {"dppId": self.server.dpp_id}}
+                {
+                    "statusCode": "SuccessCreated",
+                    "payload": {"digitalProductPassportId": self.server.dpp_id},
+                }
             )
         elif path == "/v1/dppsByProductIds":
             self._send_json(
@@ -199,10 +202,10 @@ def test_explicit_opt_in_runs_root_live_tests_against_configured_alternate_ports
         )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert ("GET", "/health") in repository.records
-    assert ("GET", "/health") in registry.records
     assert ("POST", "/v1/dpps") in repository.records
     assert ("POST", "/v1/registerDPP") in registry.records
+    assert ("GET", "/health") not in repository.records
+    assert ("GET", "/health") not in registry.records
 
 
 def test_live_marker_remains_discoverable_and_controlled_client_tests_need_no_services() -> None:
@@ -214,8 +217,8 @@ def test_live_marker_remains_discoverable_and_controlled_client_tests_need_no_se
     controlled_clients = _pytest(["tests/test_clients.py"], cwd=SDK_ROOT, env=_environment())
 
     assert integration.returncode == 0, integration.stdout + integration.stderr
-    assert "test_repo_lifecycle_against_external_endpoint" in integration.stdout
-    assert "test_registry_register_against_external_endpoint" in integration.stdout
+    assert "test_repository_json_lifecycle_against_external_endpoint" in integration.stdout
+    assert "test_registry_registration_against_external_endpoint" in integration.stdout
     assert controlled_clients.returncode == 0, controlled_clients.stdout + controlled_clients.stderr
 
 
