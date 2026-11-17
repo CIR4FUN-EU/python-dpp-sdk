@@ -125,6 +125,25 @@ educational report uses `PASS`, `EXPECTED_ERROR`, `BLOCKED`, `SKIP`, and `FAIL`.
 success separate from the strict verification verdict. Clean up reports separately from Compose
 projects, and keep the ones you need as evidence.
 
+## License and contributions
+
+The repository is licensed under the [Apache License, Version 2.0](LICENSE). Contributions
+intentionally submitted for inclusion are governed by Section 5 of that license unless a separate
+written agreement applies. Submit only work that you are authorized to contribute, and preserve
+required third-party license and attribution notices. No separate contributor agreement is
+specified by this repository. For security concerns, follow [SECURITY.md](SECURITY.md); do not
+report vulnerabilities in a public issue.
+
+## Pull requests
+
+Open a pull request against `main` with a concise description of the change, its user-visible or
+compatibility impact, and the exact checks you ran. Link related issues when appropriate, keep
+each pull request focused, and update the changelog and user documentation when behavior, public
+API, or setup changes. Maintainers review tests, public API and wire compatibility, documentation,
+and release impact; respond to requested changes in the pull request before it is merged. Do not
+merge your own contribution unless repository permissions and the project's review rules explicitly
+allow it.
+
 ## Releasing
 
 The release steps are in [RELEASING.md](RELEASING.md).

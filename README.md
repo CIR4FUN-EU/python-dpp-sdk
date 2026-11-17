@@ -277,4 +277,5 @@ names starting with `_` are internal.
 
 To work on the SDK itself, see the [contributing guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/CONTRIBUTING.md). The release steps are
 in the [release guide](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/RELEASING.md). The license is in
-[LICENSE](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/LICENSE).
+[LICENSE](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/LICENSE), and vulnerability reporting is described in the
+[security policy](https://github.com/CIR4FUN-EU/python-dpp-sdk/blob/main/SECURITY.md).
