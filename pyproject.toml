@@ -60,6 +60,7 @@ include = [
     "README.md",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
+    "SECURITY.md",
     "docs/*.md",
     "docs/architecture/*.mmd",
     "docs/architecture/*.svg",
